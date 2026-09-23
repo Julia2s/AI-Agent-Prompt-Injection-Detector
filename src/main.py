@@ -4,6 +4,7 @@ from loguru import logger
 
 from src.core.config import settings
 from src.core.logging import setup_logging
+from src.api.v1.routes import healthz_router, version_router, health_router  # <-- Добавили health_router
 
 
 @asynccontextmanager
@@ -20,3 +21,8 @@ app = FastAPI(
     version=settings.APP_VERSION,
     lifespan=lifespan,
 )
+
+# Подключаем все эндпоинты
+app.include_router(healthz_router)
+app.include_router(version_router)
+app.include_router(health_router)
