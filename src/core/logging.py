@@ -1,9 +1,10 @@
 import sys
+
 from loguru import logger
 
 
 def setup_logging(level: str = "INFO") -> None:
-    """ Настраивает структурированное логирование через loguru """
+    """Настраивает структурированное логирование через loguru"""
     logger.remove()
 
     logger.add(

@@ -1,15 +1,20 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from loguru import logger
 
+from src.api.v1.routes import (  # <-- Добавили health_router
+    health_router,
+    healthz_router,
+    version_router,
+)
 from src.core.config import settings
 from src.core.logging import setup_logging
-from src.api.v1.routes import healthz_router, version_router, health_router  # <-- Добавили health_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """ Управление жизненным циклом приложения """
+    """Управление жизненным циклом приложения"""
     setup_logging(level="DEBUG" if settings.DEBUG else "INFO")
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     yield
