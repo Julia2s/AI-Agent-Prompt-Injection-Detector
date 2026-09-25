@@ -20,7 +20,7 @@ jobs:
       - name: Install uv and dependencies
         run: |
           pip install uv
-          uv pip install --system -r pyproject.toml
+          uv pip install --system ".[dev]"
 
       - name: Run Ruff Linter
         run: ruff check .

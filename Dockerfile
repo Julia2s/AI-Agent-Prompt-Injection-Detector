@@ -1,4 +1,4 @@
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1 \
@@ -10,7 +10,7 @@ COPY pyproject.toml uv.lock ./
 
 RUN uv pip install --system --no-cache .
 
-FROM python:3.11-slim as runner
+FROM python:3.11-slim AS runner
 
 WORKDIR /app
 
