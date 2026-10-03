@@ -1,32 +1,16 @@
-
-## Быстрый запуск
-
-Нужен запущенный Docker Desktop с Linux containers и Docker Compose v2.
-В терминале из корня проекта:
-
+В терминале из корня проекта запуск:
 ```powershell
 docker compose up --build -d
 docker compose logs -f data-pipeline
 ```
 
-Первый запуск скачивает Docker-образы и зависимости. После вывода JSON-контракта
-нажми Ctrl+C, чтобы выйти из просмотра логов. Контейнеры продолжат работать.
-В `docker compose ps -a` у `data-pipeline` должен быть `Exited (0)`:
-это одноразовая задача, а не постоянно работающий сервер.
-
-Открой MLflow: http://localhost:5000 → `prompt-injection` →
-`infrastructure-data-eda`. В run открой Inputs/Datasets и Artifacts.
+MLflow: http://localhost:5000 → `prompt-injection` →
+`infrastructure-data-eda`. 
+В run надо будет нажать Inputs/Datasets и Artifacts.
 Исходное приложение доступно на http://localhost:8000/docs.
 
-```powershell
-New-Item -ItemType Directory -Force outputs
-docker compose cp data-pipeline:/work/outputs/. ./outputs/
-```
 
-Внутри Compose tracking URI — `http://mlflow:5000`; с компьютера —
-`http://localhost:5000`. После повторной обработки копируй результаты снова.
 Для повторного запуска:
-
 ```powershell
 docker compose run --rm data-pipeline
 docker compose cp data-pipeline:/work/outputs/. ./outputs/
@@ -37,7 +21,6 @@ docker compose cp data-pipeline:/work/outputs/. ./outputs/
 и digest при той же версии зависимостей остаются одинаковыми.
 
 ## Файлы и ответственность
-
 | Путь | Назначение |
 | --- | --- |
 | `docker-compose.yml` | Сервисы, зависимости, healthchecks, тома, сеть и лимиты |
@@ -57,21 +40,20 @@ docker compose cp data-pipeline:/work/outputs/. ./outputs/
 | `docs/VERIFICATION.md` | Выполненные проверки и ограничения |
 
 ## Данные и анализ
-
+(эту инфу лучше удалить мне кадется,но пусть пока будет: 
 В наборе 662 запроса: официальный train содержит 546, test — 116.
 Train разделён на 436 обучающих и 110 валидационных примеров с seed=42
 и стратификацией. Пустых значений, нормализованных повторов и пересечений
 между train/test в этой версии не найдено.
 
-В обучении 162 атаки из 436 (37,2%), в test — 60 из 116 (51,7%). Доли отличаются,
+В обучении 162 атаки из 436(37,2%), в test — 60 из 116(51,7%). Доли отличаются,
 поэтому accuracy нельзя сравнивать без учёта состава выборки. Основная будущая
-метрика — F1 для атак, дополнительные — precision, recall и PR-AUC.
-Подробности: [EDA](docs/eda/EDA.md), графики рядом.
+метрика-F1 для атак, дополнительные-precision, recall и PR-AUC.
+Подробности:[EDA](docs/eda/EDA.md), графики рядом.
 
 Источник: https://huggingface.co/datasets/deepset/prompt-injections
 Версия: `4f61ecb038e9c3fb77e21034b22511b523772cdd`.
-Сохранены оригинальные данные и карточка автора, включая противоречивые указания
-лицензии. Исходные parquet и README не изменяются; преобразования пишутся отдельно.
+(Сохранены оригинальные данные и карточка автора.Исходные parquet и README не изменяются; преобразования пишутся отдельно.))
 
 ## Проверки без Docker
 ```powershell
