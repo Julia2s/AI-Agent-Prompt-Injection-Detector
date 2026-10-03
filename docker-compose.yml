@@ -1,36 +1,115 @@
-version: '3.8'
+# Local development stack. Ports are bound only to localhost.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
   app:
     build: .
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/detector_db
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_USER: ${DB_USER:-user}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-detector_db}
     depends_on:
       db:
         condition: service_healthy
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    logging: *logging
+    networks: [backend]
 
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: detector_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-detector_db}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d detector_db"]
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+    mem_limit: 512m
+    logging: *logging
+    networks: [backend]
+
+  mlflow-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${MLFLOW_DB_USER:-mlflow}
+      POSTGRES_PASSWORD: ${MLFLOW_DB_PASSWORD:-local-mlflow-password}
+      POSTGRES_DB: ${MLFLOW_DB_NAME:-mlflow}
+    volumes:
+      - mlflow_backend:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    mem_limit: 512m
+    logging: *logging
+    networks: [backend]
+
+  mlflow:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.mlflow
+    command: [python, /work/start_server.py]
+    environment:
+      MLFLOW_DB_USER: ${MLFLOW_DB_USER:-mlflow}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:-local-mlflow-password}
+      MLFLOW_DB_NAME: ${MLFLOW_DB_NAME:-mlflow}
+    depends_on:
+      mlflow-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - mlflow_artifacts:/mlartifacts
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 1g
+    logging: *logging
+    networks: [backend]
+
+  data-pipeline:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.mlflow
+    command: [python, -m, mlops.pipeline]
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+      - data_outputs:/work/outputs
+    restart: "no"
+    mem_limit: 1g
+    logging: *logging
+    networks: [backend]
 
 volumes:
   postgres_data:
+  mlflow_backend:
+  mlflow_artifacts:
+  data_outputs:
+
+networks:
+  backend:
