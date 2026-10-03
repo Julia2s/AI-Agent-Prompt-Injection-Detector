@@ -1,0 +1,30 @@
+{
+  "raw_rows": 662,
+  "original_splits": {
+    "train": 546,
+    "test": 116
+  },
+  "missing_cells": 0,
+  "duplicate_rows_normalized": 0,
+  "train_test_overlap_removed": 0,
+  "clean_rows": 662,
+  "splits": {
+    "train": 436,
+    "validation": 110,
+    "test": 116
+  },
+  "class_counts": {
+    "train": {
+      "0": 274,
+      "1": 162
+    },
+    "validation": {
+      "0": 69,
+      "1": 41
+    },
+    "test": {
+      "1": 60,
+      "0": 56
+    }
+  }
+}
