@@ -43,7 +43,7 @@ def prepare(raw: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], dict]:
         raise ValueError("Labels must contain both 0 and 1")
     if set(df["original_split"]) != {"train", "test"}:
         raise ValueError("Expected original train and test splits")
-    # Used ONLY for duplicate detection. Model text is not lowercased or rewritten.
+
     df["key"] = df["text"].str.split().str.join(" ").str.casefold()
     if df["key"].eq("").any():
         raise ValueError("Empty text")
@@ -51,7 +51,7 @@ def prepare(raw: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], dict]:
     if (conflicts > 1).any():
         raise ValueError("Conflicting labels for normalized duplicate text")
     counts = df["original_split"].value_counts().to_dict()
-    # Keep the official test partition; remove duplicate copies from training.
+
     test = df[df.original_split == "test"].drop_duplicates("key")
     train = df[df.original_split == "train"].drop_duplicates("key")
     overlap = int(train["key"].isin(test["key"]).sum())

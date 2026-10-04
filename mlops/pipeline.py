@@ -56,48 +56,6 @@ def eda(splits: dict, stats: dict, directory: Path) -> None:
     fig.tight_layout()
     fig.savefig(directory / "text_lengths.png", dpi=150)
     plt.close(fig)
-    majority = float(train.label.value_counts(normalize=True).max())
-    report = f"""# Анализ данных prompt injection
-
-Источник: deepset/prompt-injections, официальный train/test, версия в source.json.
-Метка 0 — обычный запрос; 1 — prompt injection. Текст — вход классификатора.
-
-## Качество и разбиение
-
-Исходных строк: {stats["raw_rows"]}. Пропусков: {stats["missing_cells"]}.
-Повторов после нормализации пробелов и регистра: {stats["duplicate_rows_normalized"]}.
-Из train удалено пересечений с test: {stats["train_test_overlap_removed"]}.
-Нормализация используется только для поиска повторов: исходный текст сохранён.
-Размеры итоговых частей: {stats["splits"]}.
-Validation выделен только из исходного train: 20%, stratify=label, seed=42.
-Официальный test сохранён с удалением внутренних повторов; модели на нём не выбираются.
-Проверка пересечений ловит точные нормализованные повторы, но не все перефразирования.
-
-## Наблюдения по обучающей части
-
-Распределение меток: {stats["class_counts"]["train"]}.
-Доля преобладающего класса: {majority:.1%}. Константный классификатор уже даст
-такую accuracy, поэтому одной accuracy недостаточно. Для участника 2:
-основная метрика F1 для label=1, дополнительно precision, recall, PR-AUC и confusion matrix.
-Высокий recall уменьшает пропущенные атаки, precision отражает ложные блокировки.
-
-Медиана длины: {lengths.median():.0f} символов; 95-й перцентиль:
-{lengths.quantile(0.95):.0f}; максимум: {lengths.max()}.
-Медиана числа слов: {words.median():.0f}. Распределение по классам сохранено в CSV.
-Для первого эксперимента подходит TF-IDF + линейный классификатор. Векторизатор
-нужно обучать только на train, подбор параметров выполнять на validation.
-Порог длины для нейросети стоит выбирать по train, иначе длинные запросы могут
-обрезаться. Графики длин построены только по train, test не используется для настройки.
-
-## Различие состава частей
-
-Доля атак в train: {train.label.mean():.1%}; в validation:
-{splits["validation"].label.mean():.1%}; в test: {splits["test"].label.mean():.1%}.
-Различие долей влияет на accuracy, precision и PR-AUC. Параметры выбираются
-по validation, а не по test; изменение баланса учитывается при интерпретации метрик.
-
-"""
-    (directory / "EDA.md").write_text(report)
 
 
 def run(tracking_uri: str, output: Path, raw_dir: Path = ROOT / "data/raw") -> dict:
@@ -134,7 +92,6 @@ def run(tracking_uri: str, output: Path, raw_dir: Path = ROOT / "data/raw") -> d
         mlflow.log_input(raw_dataset, context="source")
         for name, frame in splits.items():
             uri = f"runs:/{active.info.run_id}/data/{name}.csv"
-            # Round-trip through CSV ensures the same schema/digest for the next participant.
             logged_frame = pd.read_csv(data_dir / f"{name}.csv", keep_default_na=False)
             dataset = mlflow.data.from_pandas(
                 logged_frame,

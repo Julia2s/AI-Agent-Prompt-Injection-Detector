@@ -4,7 +4,7 @@ import time
 from fastapi import APIRouter
 from loguru import logger
 from pydantic import BaseModel
-from sqlalchemy import text  # <-- ДОБАВЛЕНО
+from sqlalchemy import text
 
 from src.core.database import engine
 
