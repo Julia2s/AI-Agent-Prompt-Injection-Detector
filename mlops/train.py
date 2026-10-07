@@ -2,11 +2,13 @@
 
 import contextlib
 import json
+import os
 from pathlib import Path
 
 import joblib
 import matplotlib
 import pandas as pd
+from sklearn.pipeline import Pipeline 
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -24,7 +26,7 @@ from sklearn.metrics import (
     recall_score,
 )
 
-TRACKING_URI = "http://localhost:5000"
+TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 EXPERIMENT_NAME = "prompt-injection-experiments"
 MODEL_NAME = "prompt-injection-detector"
 HANDOFF_PATH = Path("outputs/handoff.json")
@@ -80,13 +82,11 @@ def _confusion_matrix_png(y_true, y_pred, title: str, out_dir: Path) -> Path:
 
 
 def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
-    print(f"Starting: {run_name}")
     run_dir = ARTIFACTS_DIR / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
 
     with mlflow.start_run(run_name=run_name) as run:
         run_id = run.info.run_id
-
         mlflow.set_tag("data_run_id", data_run_id)
 
         flat_params = {
@@ -100,12 +100,13 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
                     flat_params[f"model__{attr}"] = value
         mlflow.log_params(flat_params)
 
-        vectorizer = TfidfVectorizer(**vectorizer_params)
-        x_train_vec = vectorizer.fit_transform(X_train)
-        x_val_vec = vectorizer.transform(X_val)
-
-        model.fit(x_train_vec, y_train)
-        y_pred = model.predict(x_val_vec)
+        pipeline = Pipeline([
+            ("vectorizer", TfidfVectorizer(**vectorizer_params)),
+            ("classifier", model)
+        ])
+        
+        pipeline.fit(X_train, y_train)
+        y_pred = pipeline.predict(X_val)
 
         metrics = {
             "accuracy": accuracy_score(y_val, y_pred),
@@ -125,13 +126,10 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
         cm_path = _confusion_matrix_png(y_val, y_pred, run_name, run_dir)
         mlflow.log_artifact(str(cm_path))
 
-        vectorizer_path = run_dir / f"vectorizer_{run_name}.pkl"
-        joblib.dump(vectorizer, vectorizer_path)
-        mlflow.log_artifact(str(vectorizer_path))
-
-        model_path = run_dir / f"model_{run_name}.pkl"
-        joblib.dump(model, model_path)
-        mlflow.log_artifact(str(model_path))
+        mlflow.sklearn.log_model(
+            sk_model=pipeline,
+            artifact_path="model" 
+        )
 
         print(f"  F1: {metrics['f1_score']:.4f}, Accuracy: {metrics['accuracy']:.4f}")
         print(f"  Run ID: {run_id}")

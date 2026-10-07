@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "password"
     DB_NAME: str = "detector_db"
 
+    MLFLOW_TRACKING_URI: str = "http://mlflow:5000"
+    MODEL_NAME: str = "prompt-injection-detector"
+    MODEL_ALIAS: str = "champion"
+
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802
         return (
