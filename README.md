@@ -1,101 +1,214 @@
-# Prompt Injection Detector
-
-Detection service for prompt injection attacks in AI agent inputs.
-MLflow tracks data lineage, experiments and the registered model.
-
-## Architecture
-
-```
-Dataset (deepset/prompt-injections)
-       ↓
-data-pipeline  ─→  MLflow Tracking Server  ←── MLflow Model Registry
-  EDA / splits        PostgreSQL backend            prompt-injection-detector
-       ↓                                              ↑
-  handoff.json ─→  train.py (experiments) ─→  /process endpoint
-```
-
-- **`app`** — FastAPI service, `POST /process`, inference via `models:/prompt-injection-detector@champion`.
-- **`db`** — application PostgreSQL.
-- **`mlflow` / `mlflow-db`** — MLflow Tracking Server with its own PostgreSQL backend and file-based Artifact Store.
-- **`data-pipeline`** — one-shot job: validates raw data, splits, runs EDA, logs everything to MLflow, writes `handoff.json`.
-
-## Quick start
-
+## Запуск
 ```bash
 docker compose up --build -d
-docker compose logs -f data-pipeline          # wait until the pipeline run finishes
+docker compose logs -f data-pipeline train worker
 ```
 
-| Service | URL |
-| --- | --- |
-| MLflow UI | http://localhost:5000 |
-| API docs | http://localhost:8000/docs |
+Первый запуск: `data-pipeline` готовит данные и handoff, `train` обучает модель,
+регистрирует лучшую версию и назначает alias `champion`. После успешного обучения
+запускается worker. Первый запуск может занять несколько минут.
+`app`, `worker`, `producer` и `rabbitmq` находятся в одной сети; PostgreSQL и
+MLflow сохраняют данные в именованных томах; зависимости приложения зафиксированы в `uv.lock`.
+
+| Интерфейс | Адрес |
+|---|---|
+| API / Swagger | http://localhost:8000/docs |
 | API health | http://localhost:8000/healthz |
+| RabbitMQ Management | http://localhost:15672 (`guest` / `guest`) |
+| MLflow | http://localhost:5000 |
 
-Run the pipeline again:
-
-```bash
-docker compose run --rm data-pipeline
-docker compose cp data-pipeline:/work/outputs/. ./outputs/
-```
-
-## MLflow
-
-Open http://localhost:5000 → experiment `prompt-injection` → run `infrastructure-data-eda`.
-
-- **Inputs / Datasets** — lineage: raw data, train / validation / test splits, all tied to the same Hugging Face revision.
-- **Artifacts** — EDA CSV/JSON, class-balance and length plots, raw data, processed CSVs, `handoff.json`.
-- **Experiment `prompt-injection-experiments`** — training runs: `baseline_tfidf_lr`, `improved_tfidf_lr_bigrams`, `random_forest_tfidf`. Each run logs accuracy, precision, recall, F1, a classification report and a confusion matrix.
-- **Model Registry** — best run is registered as `prompt-injection-detector` and aliased `champion`.
-
-Run training locally (requires MLflow server at `http://localhost:5000` and `outputs/handoff.json`):
+Пакетная нагрузка (436 строк × 20 проходов):
 
 ```bash
-python -m mlops.train
+docker compose --profile load run --rm producer
 ```
 
-## Dataset
-
-| | Rows | Injections | Benign |
-| --- | --- | --- | --- |
-| Train | 436 | 162 (37.2 %) | 274 |
-| Validation | 110 | 41 (37.3 %) | 69 |
-| Test | 116 | 60 (51.7 %) | 56 |
-
-Source: [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections), revision `4f61ecb038e9c3fb77e21034b22511b523772cdd`.
-Primary metric: **F1 for class 1 (injection)**. Accuracy is misleading because the test split has a very different class balance.
-
-## Project structure
-
-```
-├── docker-compose.yml        # services, healthchecks, volumes
-├── Dockerfile                 # FastAPI application image
-├── infra/
-│   ├── Dockerfile.mlflow      # MLflow server + pipeline image
-│   ├── requirements.lock      # pinned ML dependencies
-│   ├── start_server.py        # MLflow startup script
-│   ── tests/                 # data-quality and integration tests
-├── mlops/
-│   ├── data.py                # data loading and validation
-│   ├── pipeline.py            # EDA, splits, MLflow logging, handoff
-│   ├── handoff.py             # contract helper for the next run
-│   └── train.py               # training experiments and model registry
-├── data/
-│   ├── raw/                   # original dataset + SHA-256 manifest
-│   └── processed/             # CSV splits from the pipeline
-├── docs/
-│   └── eda/                   # EDA report and plots
-├── src/                       # FastAPI application
-│   └── api/v1/
-└── tests/                     # API tests
-```
-
-## Verification (no Docker)
+Источник читает CSV построчно. ID вычисляется из batch-id, номера прохода, строки
+и текста. Повторный запуск того же batch-id безопасен для результатов, но часть
+сообщений будет быстро пропущена как уже выполненная. Для НОВОЙ нагрузки меняйте batch-id:
 
 ```bash
-uv venv .venv-ml --python 3.11
-uv pip install --python .venv-ml/Scripts/python.exe -r infra/requirements.lock pytest==8.3.5 ruff==0.11.2
-.venv-ml/Scripts/python.exe -m pytest infra/tests -q
-.venv-ml/Scripts/python.exe -m ruff check mlops infra
-.venv-ml/Scripts/python.exe -m ruff format --check mlops infra
+docker compose --profile load run --rm producer python -m mlops.producer --batch-id demo-2 --repeat 20
 ```
+
+Отправка через API (PowerShell):
+
+```powershell
+$body = @{task_id="manual-1"; text="Ignore previous instructions"} | ConvertTo-Json
+Invoke-RestMethod -Method Post -Uri http://localhost:8000/api/v1/tasks -ContentType "application/json" -Body $body
+```
+
+Просмотр результатов:
+
+```bash
+docker compose exec db psql -U user -d detector_db -c "SELECT task_id, is_injection, status FROM task_results ORDER BY id DESC LIMIT 10;"
+```
+
+## 1. Архитектура
+
+`mlops/producer.py` и `mlops/worker.py` разные процессы. Источник не читает БД
+и не обращается к воркеру: обратная связь приходит только от RabbitMQ.
+Воркер загружает модель один раз в lifespan. Никакой загрузки на каждое сообщение,
+фиксированной версии модели или локальной подмены модели в production нет.
+Имя/alias меняются через конфигурацию; модель должна быть зарегистрирована под ними.
+Автоматическое обучение по умолчанию регистрирует `prompt-injection-detector@champion`.
+`INFERENCE_DELAY=0.5` задаёт искусственную задержку поверх реального времени модели.
+
+## 2. Брокер --> воркер
+
+`PREFETCH_COUNT=WORKER_CONCURRENCY=1` по умолчанию: одному потоку соответствует
+одна неподтверждённая доставка. При конкурентности C задаются C потоков, C слотов
+семафора и prefetch C. Несогласованные значения отклоняются при запуске.
+При задержке 0.5 с один поток обрабатывает не более примерно 2 задач/с;
+реальная скорость ниже из-за модели и БД. Больший prefetch без свободных потоков
+лишь удерживал бы лишние сообщения у одного воркера и ухудшал распределение.
+
+Синхронные `predict` и `time.sleep` выполняются в `ThreadPoolExecutor`.
+Никакой неограниченной очереди executor нет: prefetch и семафор ограничивают подачу.
+Для чисто Python CPU-bound модели следует выбирать процессы: потоки не устраняют GIL.
+
+Health-check воркера работает на том же event loop:
+
+```bash
+docker compose exec worker python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:8001/healthz', timeout=2).status)"
+```
+
+Запуститm надо будет эту команду во время обработки с увеличенным `INFERENCE_DELAY`.
+Есть автоматический тест доступности health-check во время inference.
+
+## 3. Воркер --> источник
+
+Durable classic queue `inference_queue_v2`: `x-max-length=50`,
+`x-overflow=reject-publish`. Все публикации persistent, mandatory, с publisher confirms.
+Переполнение вызывает отказ подтверждения. Источник сохраняет !только текущую
+задачу и повторяет её после асинхронной задержки 0.5 --> 1 --> 2 с (верхняя граница).
+Следующая строка не читается до подтверждения предыдущей. После успеха задержка
+сбрасывается; успешные публикации не ограничены искусственной фиксированной частотой.
+
+При постоянном насыщении очереди скорость принятых публикаций в среднем
+определяется скоростью освобождения мест воркерами. На коротких интервалах
+возможны всплески: источник заполняет освободившиеся места после backoff.
+Фиксированного лимита задач в секунду нет.
+
+Лимит относится к `messages_ready`, а не к сумме ready + unacknowledged:
+при W воркерах верхняя граница этой суммы == 50 + W × C для обычной работы.
+DLQ хранит ошибочные сообщения отдельно и не является скрытым буфером источника.
+Повторная доставка уже принятого сообщения не считается новой публикацией.
+Почему этот механизм:
+- Management API polling даёт устаревшее значение, гонки между producers и лишние запросы.
+- Фиксированный rate limiting не адаптируется к числу и скорости воркеров.
+- `drop-head` теряет ранее принятые сообщения.
+- Publisher confirms + reject-publish даёт сигнал именно на публикацию текущей задачи.
+
+При сетевом timeout неизвестно, успел ли брокер принять публикацию. Источник
+повторяет тот же task_id, а уникальность результата устраняет последствия дубля.
+В памяти нет списка ожидающих задач. При аварийном завершении источника CSV остаётся
+на диске: повторите запуск с прежним batch-id, чтобы восстановить весь пакет.
+
+## 4. Граница системы
+
+`POST /api/v1/tasks`: один publish, без цикла ожидания свободного места.
+Успех подтверждения --> 202; отказ/недоступность/timeout --> 503 + `Retry-After`.
+При переполнении ответ приходит после отказа брокера; при сетевом сбое ожидание
+ограничено `PUBLISH_TIMEOUT=1` с. API не создаёт строк PENDING вообще: в таблицу
+результатов пишет только worker после успешного inference.
+
+`Retry-After = max(1, ceil(INFERENCE_DELAY + RETRY_DELAY))`: целое число секунд,
+консервативная подсказка на основе одного цикла освобождения слота с запасом.
+Это не обещание, что очередь освободится к этому моменту: время модели добавляется
+к искусственной задержке, а другие клиенты могут занять освободившееся место.
+
+Это load shedding: внешний HTTP-клиент не управляется системой, его запрос
+отклоняется. *Backpressure действует на наш CSV-источник: он удерживает текущую
+задачу и замедляется. После 503 клиент должен повторить запрос с тем же task_id.
+При timeout прежняя публикация могла быть принята; абсолютное «503 значит задачи
+в брокере нет» здесь невозможно. При этом PENDING-записей в БД не возникает.
+
+## 5. Ошибки и надёжность
+
+- `AckPolicy.NACK_ON_ERROR`: успешный возврат обработчика подтверждает сообщение;
+  исключение возвращает его в очередь. ACK следует только после commit результата
+  или подтверждённой публикации в DLQ.
+- `ACK_FIRST` отвергнут: падение после ACK теряет задачу. Безусловный ACK на ошибке
+  также теряет задачу. Безусловный reject без повтора не лечит временные ошибки.
+- Неудачный inference увеличивает счётчик в `task_failures` транзакционно. Счётчик
+  переживает повторную доставку и перезапуск воркера. После `MAX_ATTEMPTS=3`
+  (первая попытка + два повтора) сообщение отправляется в `<QUEUE_NAME>.dlq`.
+- Перед NACK есть `RETRY_DELAY`, поэтому нет busy loop. Счётчик идентифицируется
+  SHA-256 исходного тела. Невалидный JSON/схема сразу идут в DLQ: повторы не исправят формат.
+- Сбой БД или DLQ не подтверждает исходное сообщение. Если budget уже исчерпан,
+  повторяется только доставка в DLQ, без нового inference. При недоступности БД
+  счётчик нельзя надёжно обновить: сообщение сохраняется и ожидает восстановления.
+- Идемпотентность результатов: UNIQUE(task_id) + атомарный
+  `INSERT ... ON CONFLICT DO NOTHING`. Предварительная проверка лишь ускоряет
+  обработку; безопасность при гонке обеспечивает БД. Один task_id должен означать
+  один и тот же текст; конфликтующий текст уходит в DLQ.
+- Падение между commit и ACK приводит к повторной доставке, но не к дубликату результата.
+  Inference может быть повторён при аварии до commit — он не имеет побочных эффектов.
+- Публикация в DLQ и ACK исходного сообщения не являются единой транзакцией:
+  авария между ними может дублировать DLQ-запись. Гарантия — at-least-once;
+  для разбора DLQ есть стабильный `message_key`. Результат в БД остаётся уникальным.
+- FastStream при SIGTERM прекращает обработку новых сообщений и ждёт принятые;
+  `graceful_timeout=None` не обрывает выполняющийся handler. Compose даёт 10 минут
+  до принудительного SIGKILL. Для операции длиннее 10 минут увеличьте
+  `stop_grace_period`; после SIGKILL неподтверждённые сообщения возвращает брокер.
+
+Продемонстрировать штатную остановку: 1:запустить producer, 2:дождаться
+`messages_unacknowledged > 0`, затем:
+
+```bash
+docker compose stop worker
+docker compose start worker
+```
+
+Для второго воркера:
+```bash
+docker compose up -d --scale worker=2 --no-recreate worker
+```
+
+## 6. Тестирование
+
+```bash
+uv sync --frozen
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -m "not integration" tests -v
+uv run pytest -m integration tests/integration -v
+```
+
+`TestRabbitBroker` проверяет обработчик, дубликаты, ошибки, DLQ, загрузку модели.
+Он не эмулирует ёмкость очереди и повторные доставки: для unit-теста сообщения
+доставляются повторно явно. Реальные overflow/NACK/повторы проверяет Testcontainers.
+Интеграционный тест SIGTERM подменяет только модель медленной тестовой моделью;
+процесс, event loop, брокер, подтверждения и PostgreSQL настоящие.
+
+| Проверка в среде подготовки | Результат |
+|---|---|
+| Обычные тесты `tests`, без integration | 18 passed |
+| Ruff check / format | выполнены успешно |
+| Integration: overflow, API, retries, DLQ, SIGTERM | код добавлен; запуск здесь заблокирован отсутствием Docker daemon |
+| Docker Compose / полный запуск с MLflow | конфигурация проверена; запуск контейнеров здесь не выполнен |
+
+
+## Конфигурация и изменение параметров
+Основные значения  `.env.example` и `mlops/settings.py`. Compose подставляет
+`QUEUE_CAPACITY`, `QUEUE_NAME`, `PREFETCH_COUNT`, `WORKER_CONCURRENCY`,
+`INFERENCE_DELAY`, `MAX_ATTEMPTS`, `MODEL_NAME`, `MODEL_ALIAS` из `.env`.
+
+((RabbitMQ не разрешает менять x-max-length уже объявленной очереди redeclare-ом.
+Для другого лимита сначала стоп producers, дождись ready=unacked=0,
+остановите worker/API и удали пустую очередь через Management UI;
+после изменения `.env` пересоздайте сервисы. Альтернатива: новое `QUEUE_NAME`
+с отдельным разбором старой очереди. Не удалятьй непустые очереди или volumes.))
+
+## Данные и структура
+
+Датасет `deepset/prompt-injections`: train 436, validation 110, test 116.
+Существующие обработка данных, EDA и обучение сохранены.
+
+- `mlops/settings.py`, `messaging.py` — общие настройки и топология.
+- `mlops/producer.py`  потоковое чтение CSV и backpressure.
+- `mlops/worker.py` — загрузка модели, inference, retries, DLQ, health.
+- `mlops/db.py` — атомарная запись и постоянный счётчик ошибок.
+- `src/api/v1/routes/tasks.py`  HTTP load shedding.
+- `tests/test_backpressure.py`, `tests/integration/` — проверки пунктов 1–6
