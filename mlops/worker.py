@@ -1,82 +1,157 @@
-import os
-import time
+"""FastStream worker: bounded concurrency, durable retries, commit before ACK."""
+
 import asyncio
-import mlflow
+import base64
+import hashlib
 import logging
-from faststream import FastStream
-from faststream.rabbit import RabbitBroker, RabbitQueue
-from pydantic import BaseModel
+import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from functools import partial
 
-from mlops.db import init_db, async_session, TaskResult
+from faststream import AckPolicy, FastStream
+from pydantic import BaseModel, Field, ValidationError
 
-logging.basicConfig(level=logging.INFO)
+from mlops.db import ResultStore
+from mlops.messaging import dead_queue, declare_topology, make_broker, task_queue
+from mlops.settings import PipelineSettings
+
 logger = logging.getLogger(__name__)
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-MLFLOW_URI = os.getenv("MLFLOW_TRACKING_URI", "http://localhost:5000")
-MODEL_ALIAS = "models:/prompt-injection-detector@champion"
-
-INFERENCE_DELAY = float(os.getenv("INFERENCE_DELAY", "0.5")) 
-
-broker = RabbitBroker(RABBITMQ_URL)
-
-model = None
-
-@asynccontextmanager
-async def lifespan():
-    global model
-    logger.info("Запуск воркера. Инициализация БД...")
-    await init_db()
-    
-    logger.info(f"Загрузка модели из MLflow по алиасу: {MODEL_ALIAS}")
-    mlflow.set_tracking_uri(MLFLOW_URI)
-
-    model = mlflow.pyfunc.load_model(MODEL_ALIAS)
-    logger.info("Модель успешно загружена в память!")
-    
-    yield
-    
-    logger.info("Остановка воркера...")
-
-app = FastStream(broker, lifespan=lifespan)
 
 class TaskMessage(BaseModel):
-    task_id: str
-    text: str
+    task_id: str = Field(min_length=1, max_length=128)
+    text: str = Field(min_length=1, max_length=100000)
 
-@broker.subscriber(
-    queue=RabbitQueue(
-        name="inference_queue", 
-        durable=True,
-        arguments={
-            "x-max-length": 50,
-            "x-overflow": "reject-publish"
-        }
-    ),
-)
-async def process_task(msg: TaskMessage):
-    logger.info(f"Получена задача: {msg.task_id}")
-    
-    try:
-        def run_inference():
-            time.sleep(INFERENCE_DELAY)
-            prediction = model.predict([msg.text])
-            return prediction[0] if isinstance(prediction, (list, tuple)) else prediction
 
-        is_injection = await asyncio.to_thread(run_inference)
+async def raw_decoder(message):
+    return message.body
 
-        async with async_session() as session:
-            result = TaskResult(
-                task_id=msg.task_id,
-                text=msg.text,
-                is_injection=bool(is_injection)
+
+def load_model(settings):
+    import mlflow
+
+    mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
+    return mlflow.pyfunc.load_model(settings.model_uri)
+
+
+class Worker:
+    def __init__(self, settings, store=None, model_loader=load_model):
+        self.settings = settings
+        self.store = store or ResultStore(settings.database_url)
+        self.model_loader = model_loader
+        self.model = None
+        self.broker = make_broker(settings)
+        self.pool = ThreadPoolExecutor(max_workers=settings.worker_concurrency)
+        self.slots = asyncio.Semaphore(settings.worker_concurrency)
+        self.ready = False
+        self.handler = self.broker.subscriber(
+            task_queue(settings),
+            ack_policy=AckPolicy.NACK_ON_ERROR,
+            decoder=raw_decoder,
+        )(self.process)
+
+    async def start(self):
+        await self.store.initialize()
+        self.model = await asyncio.get_running_loop().run_in_executor(
+            self.pool, self.model_loader, self.settings
+        )
+        await self.broker.connect()
+        await declare_topology(self.broker, self.settings)
+        self.ready = True
+
+    def predict(self, text):
+        time.sleep(self.settings.inference_delay)
+        prediction = self.model.predict([text])
+        return bool(prediction[0])
+
+    async def to_dlq(self, body, key, attempts, error):
+        await self.broker.publish(
+            {
+                "message_key": key,
+                "body_base64": base64.b64encode(body).decode(),
+                "attempts": attempts,
+                "error": str(error)[:2000],
+            },
+            queue=dead_queue(self.settings),
+            persist=True,
+            mandatory=True,
+            timeout=self.settings.publish_timeout,
+            message_id=key,
+        )
+
+    async def process(self, body: bytes):
+        async with self.slots:
+            try:
+                await self.process_one(body)
+            except Exception:
+                # DB/DLQ outage: keep the original message, never ACK on failure
+                await asyncio.sleep(self.settings.retry_delay)
+                raise
+
+    async def process_one(self, body):
+        key = hashlib.sha256(body).hexdigest()
+        try:
+            task = TaskMessage.model_validate_json(body)
+        except ValidationError as error:
+            await self.to_dlq(body, key, 0, error)
+            return  # Invalid schema is not transient; retry cannot repair it
+        existing = await self.store.get(task.task_id)
+        if existing is not None:
+            if existing.text != task.text:
+                await self.to_dlq(body, key, 0, "task_id reused with different text")
+            return
+        attempts = await self.store.failures(key)
+        error = "Retry budget was exhausted before redelivery"
+        if attempts >= self.settings.max_attempts:
+            await self.to_dlq(body, key, attempts, error)
+            return
+        try:
+            prediction = await asyncio.get_running_loop().run_in_executor(
+                self.pool, partial(self.predict, task.text)
             )
-            await session.merge(result)
-            await session.commit()
-            
-        logger.info(f"Задача {msg.task_id} выполнена и сохранена. Инъекция: {is_injection}")
-        
-    except Exception as e:
-        logger.error(f"Ошибка обработки задачи {msg.task_id}: {e}")
-        raise
+        except Exception as failure:
+            attempts = await self.store.record_failure(key)
+            if attempts >= self.settings.max_attempts:
+                await self.to_dlq(body, key, attempts, failure)
+                return
+            # NACK_ON_ERROR requeues(the original delivery after process delay.
+            raise
+        await self.store.save(task.task_id, task.text, prediction)
+        stored = await self.store.get(task.task_id)
+        if stored.text != task.text:
+            await self.to_dlq(body, key, attempts, "task_id reused with different text")
+
+    async def health(self, reader, writer):
+        await reader.read(4096)
+        status = b"200 OK" if self.ready else b"503 Service Unavailable"
+        writer.write(
+            b"HTTP/1.1 "
+            + status
+            + b"\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK"
+        )
+        await writer.drain()
+        writer.close()
+        await writer.wait_closed()
+
+    @asynccontextmanager
+    async def lifespan(self):
+        server = None
+        try:
+            await self.start()
+            server = await asyncio.start_server(
+                self.health, "0.0.0.0", self.settings.worker_health_port
+            )
+            yield
+        finally:
+            self.ready = False
+            if server:
+                server.close()
+                await server.wait_closed()
+            # FastStream drains accepted deliveries before exiting this lifespan.
+            self.pool.shutdown(wait=True)
+            await self.store.close()
+
+
+worker = Worker(PipelineSettings())
+app = FastStream(worker.broker, lifespan=worker.lifespan)

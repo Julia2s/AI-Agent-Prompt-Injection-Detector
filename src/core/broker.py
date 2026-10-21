@@ -1,6 +1,5 @@
-import os
-from faststream.rabbit import RabbitBroker
+from mlops.messaging import make_broker
+from mlops.settings import PipelineSettings
 
-RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
-
-broker = RabbitBroker(RABBITMQ_URL)
+pipeline_settings = PipelineSettings()
+broker = make_broker(pipeline_settings)

@@ -1,30 +1,36 @@
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from loguru import logger
 
+from mlops.messaging import declare_topology
 from src.api.v1.routes import (
     health_router,
     healthz_router,
-    version_router,
     tasks_router,
+    version_router,
 )
+from src.core.broker import broker, pipeline_settings
 from src.core.config import settings
 from src.core.logging import setup_logging
-from src.core.broker import broker
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(level="DEBUG" if settings.DEBUG else "INFO")
     logger.info(f"Starting {settings.APP_NAME} v{settings.APP_VERSION}")
-    
+
     logger.info("Подключение API к RabbitMQ...")
+    await broker.connect()
+    await declare_topology(broker, pipeline_settings)
     await broker.start()
     logger.info("API успешно подключено к RabbitMQ")
-    
-    yield 
-    
+
+    yield
+
     logger.info("Остановка API. Отключение от RabbitMQ...")
     await broker.close()
+
 
 app = FastAPI(
     title=settings.APP_NAME,

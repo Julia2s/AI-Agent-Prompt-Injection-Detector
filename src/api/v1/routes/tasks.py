@@ -1,40 +1,34 @@
 import uuid
-import logging
-from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
 
-from src.core.broker import broker
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from mlops.messaging import publish_task
+from mlops.producer import TRANSIENT_ERRORS
+from src.core.broker import broker, pipeline_settings
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
 
+
 class TaskRequest(BaseModel):
-    text: str
-    task_id: str | None = None
+    text: str = Field(min_length=1, max_length=100000)
+    task_id: str | None = Field(default=None, min_length=1, max_length=128)
+
 
 @router.post("/tasks", status_code=202)
-async def create_task(request: TaskRequest, response: Response):
+async def create_task(request: TaskRequest):
     task_id = request.task_id or str(uuid.uuid4())
-    
     try:
-        await broker.publish(
-            {"task_id": task_id, "text": request.text},
-            queue="inference_queue",
-            timeout=1.0
+        await publish_task(
+            broker, pipeline_settings, {"task_id": task_id, "text": request.text}
         )
-        
-        logger.info(f"📤 Задача {task_id} успешно поставлена в очередь")
-        return {
-            "task_id": task_id,
-            "status": "ACCEPTED",
-            "message": "Задача принята в асинхронную обработку"
-        }
-        
-    except Exception as e:
-        logger.warning(f"Перегрузка системы! Задача {task_id} отклонена: {e}")
-        response.headers["Retry-After"] = "5"
+    except TRANSIENT_ERRORS as error:
         raise HTTPException(
-            status_code=503, 
-            detail="Service Unavailable: Система перегружена, попробуйте позже"
-        )
+            status_code=503,
+            detail={
+                "message": "Queue unavailable; retry with the same task_id",
+                "task_id": task_id,
+            },
+            headers={"Retry-After": str(pipeline_settings.retry_after)},
+        ) from error
+    return {"task_id": task_id, "status": "ACCEPTED"}
