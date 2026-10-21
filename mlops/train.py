@@ -5,10 +5,9 @@ import json
 import os
 from pathlib import Path
 
-import joblib
 import matplotlib
 import pandas as pd
-from sklearn.pipeline import Pipeline 
+from sklearn.pipeline import Pipeline
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -100,11 +99,13 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
                     flat_params[f"model__{attr}"] = value
         mlflow.log_params(flat_params)
 
-        pipeline = Pipeline([
-            ("vectorizer", TfidfVectorizer(**vectorizer_params)),
-            ("classifier", model)
-        ])
-        
+        pipeline = Pipeline(
+            [
+                ("vectorizer", TfidfVectorizer(**vectorizer_params)),
+                ("classifier", model),
+            ]
+        )
+
         pipeline.fit(X_train, y_train)
         y_pred = pipeline.predict(X_val)
 
@@ -126,10 +127,7 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
         cm_path = _confusion_matrix_png(y_val, y_pred, run_name, run_dir)
         mlflow.log_artifact(str(cm_path))
 
-        mlflow.sklearn.log_model(
-            sk_model=pipeline,
-            artifact_path="model" 
-        )
+        mlflow.sklearn.log_model(sk_model=pipeline, artifact_path="model")
 
         print(f"  F1: {metrics['f1_score']:.4f}, Accuracy: {metrics['accuracy']:.4f}")
         print(f"  Run ID: {run_id}")
@@ -139,12 +137,12 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
 with mlflow.start_run(run_name="training-session") as session_run:
     mlflow.set_tag("stage", "training")
     train_df, val_df = _load_data()
-    assert (
-        len(train_df) == contract["datasets"]["train"]["rows"]
-    ), f"Train rows mismatch: {len(train_df)} vs {contract['datasets']['train']['rows']}"
-    assert (
-        len(val_df) == contract["datasets"]["validation"]["rows"]
-    ), f"Val rows mismatch: {len(val_df)} vs {contract['datasets']['validation']['rows']}"
+    assert len(train_df) == contract["datasets"]["train"]["rows"], (
+        f"Train rows mismatch: {len(train_df)} vs {contract['datasets']['train']['rows']}"
+    )
+    assert len(val_df) == contract["datasets"]["validation"]["rows"], (
+        f"Val rows mismatch: {len(val_df)} vs {contract['datasets']['validation']['rows']}"
+    )
     X_train, y_train = train_df["text"], train_df["label"]
     X_val, y_val = val_df["text"], val_df["label"]
     print(f"Train: {len(train_df)} rows, Val: {len(val_df)} rows")
