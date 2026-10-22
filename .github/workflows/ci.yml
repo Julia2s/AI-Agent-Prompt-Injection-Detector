@@ -1,32 +1,16 @@
 name: CI Pipeline
-
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
-
+on: [push, pull_request]
 jobs:
-  lint-and-test:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Install uv and dependencies
-        run: |
-          pip install uv
-          uv pip install --system ".[dev]"
-
-      - name: Run Ruff Linter
-        run: ruff check .
-
-      - name: Check Formatting
-        run: ruff format --check .
-
-      - name: Run Tests with Coverage
-        run: uv run pytest --cov=src tests/ --cov-report=term-missing --cov-fail-under=80
+      - run: pip install uv==0.12.19
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest -m "not integration" tests --cov=src --cov-report=term-missing --cov-fail-under=80
+      - run: uv run pytest -m integration tests/integration -v

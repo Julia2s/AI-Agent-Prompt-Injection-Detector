@@ -1,36 +1,238 @@
-version: '3.8'
-
+x-logging: &id001
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '3'
+# Pipeline environment shared by app, worker, and producer.
+# DATABASE_URL is composed from DB_* so .env stays the single source of truth.
+x-pipeline-env: &pipeline_env
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-detector_db}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MODEL_NAME: ${MODEL_NAME:-prompt-injection-detector}
+  MODEL_ALIAS: ${MODEL_ALIAS:-champion}
+  QUEUE_NAME: ${QUEUE_NAME:-inference_queue_v2}
+  QUEUE_CAPACITY: ${QUEUE_CAPACITY:-50}
+  PREFETCH_COUNT: ${PREFETCH_COUNT:-1}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+  INFERENCE_DELAY: ${INFERENCE_DELAY:-0.5}
+  MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+  RETRY_DELAY: ${RETRY_DELAY:-0.5}
+  PUBLISH_TIMEOUT: ${PUBLISH_TIMEOUT:-1.0}
+  SOURCE_BACKOFF_MAX: ${SOURCE_BACKOFF_MAX:-2.0}
+  GRACEFUL_TIMEOUT: ${GRACEFUL_TIMEOUT:-300}
 services:
   app:
     build: .
     ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql+asyncpg://user:password@db:5432/detector_db
+    - 127.0.0.1:8000:8000
+    environment: *pipeline_env
     depends_on:
       db:
         condition: service_healthy
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-
+      mlflow:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz',
+        timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+    logging: *id001
+    networks:
+    - backend
   db:
     image: postgres:15-alpine
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: detector_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-detector_db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+    - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d detector_db"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
       interval: 5s
       timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    logging: *id001
+    networks:
+    - backend
+  mlflow-db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${MLFLOW_DB_USER:-mlflow}
+      POSTGRES_PASSWORD: ${MLFLOW_DB_PASSWORD:-local-mlflow-password}
+      POSTGRES_DB: ${MLFLOW_DB_NAME:-mlflow}
+    volumes:
+    - mlflow_backend:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    mem_limit: 512m
+    logging: *id001
+    networks:
+    - backend
+  mlflow:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.mlflow
+    command:
+    - python
+    - /work/start_server.py
+    environment:
+      MLFLOW_DB_USER: ${MLFLOW_DB_USER:-mlflow}
+      MLFLOW_DB_PASSWORD: ${MLFLOW_DB_PASSWORD:-local-mlflow-password}
+      MLFLOW_DB_NAME: ${MLFLOW_DB_NAME:-mlflow}
+    depends_on:
+      mlflow-db:
+        condition: service_healthy
+    ports:
+    - 127.0.0.1:5000:5000
+    volumes:
+    - mlflow_artifacts:/mlartifacts
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:5000/health',
+        timeout=3)
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    mem_limit: 1g
+    logging: *id001
+    networks:
+    - backend
+  data-pipeline:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile.mlflow
+    command:
+    - python
+    - -m
+    - mlops.pipeline
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    volumes:
+    - data_outputs:/work/outputs
+    # Named volume mounts as root:root by default; the image's USER worker
+    # cannot write to it. Same workaround as the train service below.
+    user: 0:0
+    restart: 'no'
+    mem_limit: 1g
+    logging: *id001
+    networks:
+    - backend
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+    - 127.0.0.1:5672:5672
+    - 127.0.0.1:15672:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test:
+      - CMD
+      - rabbitmq-diagnostics
+      - check_port_connectivity
+      interval: 10s
+      timeout: 5s
       retries: 5
-
+    networks:
+    - backend
+    volumes:
+    - rabbitmq_data:/var/lib/rabbitmq
+    - ./infra/rabbitmq.conf:/etc/rabbitmq/conf.d/20-stats.conf:ro
+  worker:
+    build: .
+    command:
+    - faststream
+    - run
+    - mlops.worker:app
+    environment: *pipeline_env
+    networks:
+    - backend
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      train:
+        condition: service_completed_successfully
+    stop_grace_period: 10m  # must stay above GRACEFUL_TIMEOUT (300 s)
+    mem_limit: 2g
+    healthcheck:
+      test:
+      - CMD
+      - python
+      - -c
+      - import urllib.request; urllib.request.urlopen('http://localhost:8001/healthz',
+        timeout=2)
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
+  producer:
+    build: .
+    profiles:
+    - load
+    command:
+    - python
+    - -m
+    - mlops.producer
+    - --batch-id
+    - demo-1
+    - --repeat
+    - '20'
+    environment: *pipeline_env
+    networks:
+    - backend
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: 'no'
+  train:
+    build: .
+    command:
+    - python
+    - -m
+    - mlops.train
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    volumes:
+    - data_outputs:/app/outputs
+    networks:
+    - backend
+    user: 0:0
+    depends_on:
+      data-pipeline:
+        condition: service_completed_successfully
+    restart: 'no'
 volumes:
-  postgres_data:
+  postgres_data: null
+  mlflow_backend: null
+  mlflow_artifacts: null
+  data_outputs: null
+  rabbitmq_data: null
+networks:
+  backend: null

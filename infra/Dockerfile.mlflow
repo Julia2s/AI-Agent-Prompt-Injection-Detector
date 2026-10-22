@@ -1,0 +1,12 @@
+FROM python:3.11-slim
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 MPLCONFIGDIR=/tmp/matplotlib
+WORKDIR /work
+COPY infra/requirements.lock /tmp/requirements.lock
+RUN pip install --no-cache-dir -r /tmp/requirements.lock && \
+    useradd --create-home --uid 10001 worker && \
+    mkdir -p /mlartifacts /work/outputs && chown -R worker:worker /mlartifacts /work
+COPY --chown=worker:worker mlops /work/mlops
+COPY --chown=worker:worker data /work/data
+COPY --chown=worker:worker infra/start_server.py /work/start_server.py
+USER worker
+EXPOSE 5000
