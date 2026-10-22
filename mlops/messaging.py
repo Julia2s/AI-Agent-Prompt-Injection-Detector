@@ -1,19 +1,20 @@
 """One topology and publisher-confirm policy for every process."""
 
+import time
+
 from faststream.rabbit import Channel, RabbitBroker, RabbitQueue
 
 from mlops.settings import PipelineSettings
 
 
 def task_queue(settings: PipelineSettings):
-    return RabbitQueue(
-        settings.queue_name,
-        durable=True,
-        arguments={
+    arguments = {}
+    if settings.bounded:
+        arguments = {
             "x-max-length": settings.queue_capacity,
             "x-overflow": "reject-publish",
-        },
-    )
+        }
+    return RabbitQueue(settings.queue_name, durable=True, arguments=arguments)
 
 
 def dead_queue(settings: PipelineSettings):
@@ -28,13 +29,18 @@ def make_broker(settings: PipelineSettings):
             on_return_raises=True,
             prefetch_count=settings.prefetch_count,
         ),
-        graceful_timeout=None,
+        graceful_timeout=settings.graceful_timeout,
     )
 
 
 async def declare_topology(broker, settings):
     await broker.declare_queue(dead_queue(settings))
     await broker.declare_queue(task_queue(settings))
+
+
+def new_task(task_id: str, text: str, **extra) -> dict:
+    """Message body. `created_at` lets the worker measure end-to-end latency."""
+    return {"task_id": task_id, "text": text, "created_at": time.time(), **extra}
 
 
 async def publish_task(broker, settings, task):

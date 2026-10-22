@@ -3,28 +3,30 @@ x-logging: &id001
   options:
     max-size: 10m
     max-file: '3'
+# Pipeline environment shared by app, worker, and producer.
+# DATABASE_URL is composed from DB_* so .env stays the single source of truth.
+x-pipeline-env: &pipeline_env
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
+  DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-detector_db}
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  MODEL_NAME: ${MODEL_NAME:-prompt-injection-detector}
+  MODEL_ALIAS: ${MODEL_ALIAS:-champion}
+  QUEUE_NAME: ${QUEUE_NAME:-inference_queue_v2}
+  QUEUE_CAPACITY: ${QUEUE_CAPACITY:-50}
+  PREFETCH_COUNT: ${PREFETCH_COUNT:-1}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
+  INFERENCE_DELAY: ${INFERENCE_DELAY:-0.5}
+  MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+  RETRY_DELAY: ${RETRY_DELAY:-0.5}
+  PUBLISH_TIMEOUT: ${PUBLISH_TIMEOUT:-1.0}
+  SOURCE_BACKOFF_MAX: ${SOURCE_BACKOFF_MAX:-2.0}
+  GRACEFUL_TIMEOUT: ${GRACEFUL_TIMEOUT:-300}
 services:
   app:
     build: .
     ports:
     - 127.0.0.1:8000:8000
-    environment:
-      DB_HOST: db
-      DB_PORT: '5432'
-      DB_USER: ${DB_USER:-user}
-      DB_PASSWORD: ${DB_PASSWORD:-password}
-      DB_NAME: ${DB_NAME:-detector_db}
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_NAME: ${MODEL_NAME:-prompt-injection-detector}
-      MODEL_ALIAS: ${MODEL_ALIAS:-champion}
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-detector_db}
-      QUEUE_NAME: ${QUEUE_NAME:-inference_queue_v2}
-      QUEUE_CAPACITY: ${QUEUE_CAPACITY:-50}
-      PREFETCH_COUNT: ${PREFETCH_COUNT:-1}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
-      INFERENCE_DELAY: ${INFERENCE_DELAY:-0.5}
-      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+    environment: *pipeline_env
     depends_on:
       db:
         condition: service_healthy
@@ -132,6 +134,9 @@ services:
         condition: service_healthy
     volumes:
     - data_outputs:/work/outputs
+    # Named volume mounts as root:root by default; the image's USER worker
+    # cannot write to it. Same workaround as the train service below.
+    user: 0:0
     restart: 'no'
     mem_limit: 1g
     logging: *id001
@@ -157,24 +162,14 @@ services:
     - backend
     volumes:
     - rabbitmq_data:/var/lib/rabbitmq
+    - ./infra/rabbitmq.conf:/etc/rabbitmq/conf.d/20-stats.conf:ro
   worker:
     build: .
     command:
     - faststream
     - run
     - mlops.worker:app
-    environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-detector_db}
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_NAME: ${MODEL_NAME:-prompt-injection-detector}
-      MODEL_ALIAS: ${MODEL_ALIAS:-champion}
-      QUEUE_NAME: ${QUEUE_NAME:-inference_queue_v2}
-      QUEUE_CAPACITY: ${QUEUE_CAPACITY:-50}
-      PREFETCH_COUNT: ${PREFETCH_COUNT:-1}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
-      INFERENCE_DELAY: ${INFERENCE_DELAY:-0.5}
-      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+    environment: *pipeline_env
     networks:
     - backend
     depends_on:
@@ -184,7 +179,8 @@ services:
         condition: service_healthy
       train:
         condition: service_completed_successfully
-    stop_grace_period: 10m
+    stop_grace_period: 10m  # must stay above GRACEFUL_TIMEOUT (300 s)
+    mem_limit: 2g
     healthcheck:
       test:
       - CMD
@@ -208,18 +204,7 @@ services:
     - demo-1
     - --repeat
     - '20'
-    environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672/
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-detector_db}
-      MLFLOW_TRACKING_URI: http://mlflow:5000
-      MODEL_NAME: ${MODEL_NAME:-prompt-injection-detector}
-      MODEL_ALIAS: ${MODEL_ALIAS:-champion}
-      QUEUE_NAME: ${QUEUE_NAME:-inference_queue_v2}
-      QUEUE_CAPACITY: ${QUEUE_CAPACITY:-50}
-      PREFETCH_COUNT: ${PREFETCH_COUNT:-1}
-      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-1}
-      INFERENCE_DELAY: ${INFERENCE_DELAY:-0.5}
-      MAX_ATTEMPTS: ${MAX_ATTEMPTS:-3}
+    environment: *pipeline_env
     networks:
     - backend
     depends_on:

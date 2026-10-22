@@ -1,0 +1,5 @@
+run,max queue ready,max ready+unacked,publish attempts/s at broker (steady),worker ack/s (steady),max mem_worker_mb,max mem_producer_mb,max mem_rabbitmq_mb,SOURCE accepted tasks/s (steady),source max buffered tasks,"source max RSS, MiB",rejected publish attempts,LOST tasks,tasks finished,inference ms (mean),latency s p50,latency s p95,latency s max
+"без ограничений, 1 воркер",6087,41870,473.03,1.79,698.8,299.4,446.6,1626.39,27964,303.7,0,0,74,554.4,25.8,48.83,51.93
+"с ограничениями, 1 воркер",50,51,4.31,2.15,249.7,43.3,262.1,1.9,1,54.6,114,0,144,508.1,29.49,29.87,29.94
+"с ограничениями, 2 воркера",50,52,6.46,4.31,497.9,41.7,220.9,3.87,1,54.5,115,0,281,508.0,13.95,16.53,16.58
+"с ограничениями, 1→2 воркера",50,51,5.84,3.68,503.2,41.7,244.0,3.6,1,54.6,172,0,287,508.1,16.2,29.68,29.84

@@ -12,7 +12,7 @@ from functools import partial
 from faststream import AckPolicy, FastStream
 from pydantic import BaseModel, Field, ValidationError
 
-from mlops.db import ResultStore
+from mlops.db import SUCCESS, ResultStore
 from mlops.messaging import dead_queue, declare_topology, make_broker, task_queue
 from mlops.settings import PipelineSettings
 
@@ -20,11 +20,16 @@ logger = logging.getLogger(__name__)
 
 
 class TaskMessage(BaseModel):
+    # Unknown fields (e.g. the experiment's `padding`) are ignored by pydantic.
     task_id: str = Field(min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=100000)
+    created_at: float | None = None
 
 
 async def raw_decoder(message):
+    # Bypass FastStream's JSON decoder so malformed payloads reach the handler
+    # as raw bytes and go to the DLQ via ValidationError, instead of crashing
+    # the consumer on decode.
     return message.body
 
 
@@ -43,6 +48,9 @@ class Worker:
         self.model = None
         self.broker = make_broker(settings)
         self.pool = ThreadPoolExecutor(max_workers=settings.worker_concurrency)
+        # Safety net for the unbounded baseline (prefetch=0): limits the number
+        # of concurrent in-flight asyncio tasks inside this process. In bounded
+        # mode it is redundant with prefetch_count but harmless.
         self.slots = asyncio.Semaphore(settings.worker_concurrency)
         self.ready = False
         self.handler = self.broker.subscriber(
@@ -85,7 +93,7 @@ class Worker:
             try:
                 await self.process_one(body)
             except Exception:
-                # DB/DLQ outage: keep the original message, never ACK on failure
+                # DB/DLQ outage: keep the original message, never ACK on failure.
                 await asyncio.sleep(self.settings.retry_delay)
                 raise
 
@@ -100,12 +108,16 @@ class Worker:
         if existing is not None:
             if existing.text != task.text:
                 await self.to_dlq(body, key, 0, "task_id reused with different text")
-            return
+                return
+            if existing.status == SUCCESS:
+                return  # redelivery of an already finished task: nothing to do
+            # PENDING row created by the API: fall through and process it.
         attempts = await self.store.failures(key)
         error = "Retry budget was exhausted before redelivery"
         if attempts >= self.settings.max_attempts:
             await self.to_dlq(body, key, attempts, error)
             return
+        started = time.perf_counter()
         try:
             prediction = await asyncio.get_running_loop().run_in_executor(
                 self.pool, partial(self.predict, task.text)
@@ -115,9 +127,19 @@ class Worker:
             if attempts >= self.settings.max_attempts:
                 await self.to_dlq(body, key, attempts, failure)
                 return
-            # NACK_ON_ERROR requeues(the original delivery after process delay.
+            # NACK_ON_ERROR requeues the original delivery after process delay.
             raise
-        await self.store.save(task.task_id, task.text, prediction)
+        inference_ms = (time.perf_counter() - started) * 1000
+        latency_ms = (
+            max(0.0, (time.time() - task.created_at) * 1000)
+            if task.created_at is not None
+            else None
+        )
+        await self.store.save(
+            task.task_id, task.text, prediction, inference_ms, latency_ms
+        )
+        # Defensive check against a manual publication into the queue with a
+        # task_id that already exists with different text (cannot happen via API).
         stored = await self.store.get(task.task_id)
         if stored.text != task.text:
             await self.to_dlq(body, key, attempts, "task_id reused with different text")

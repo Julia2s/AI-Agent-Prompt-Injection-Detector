@@ -10,8 +10,4 @@ class HealthzResponse(BaseModel):
 
 @router.get("/healthz", response_model=HealthzResponse, summary="Liveness probe")
 async def healthz():
-    """
-    Быстрая проверка живости процесса
-    Не делает запросов к БД или внешним сервисам
-    """
     return {"status": "ok"}

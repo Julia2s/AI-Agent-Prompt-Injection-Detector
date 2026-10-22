@@ -1,0 +1,265 @@
+ Container ai-agent-prompt-injection-detector-producer-run-0976180acf12 Creating 
+ Container ai-agent-prompt-injection-detector-producer-run-0976180acf12 Created 
+WARNING:__main__:Publication not confirmed; retry task_id=4285cc2906ecf124001de6db89af76cc91de338780d7282d20cede99eaae6dd9 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=4ae499529669af8dedeb1b4e1f4ed40169a90eac0bf844a2cab37f57f976ba9d in 0.50s
+SOURCE_METRIC,1.07,52,2,0,48.81,1.88,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=307c8d8d16060719a8d5ff49414b80a7d5326df63a8833b7dd09e169dbf8eb80 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=852bb0f98b1029ccf9954bea902d0e5bdef085fb4db66cadc8f46a028bc91d3b in 0.50s
+SOURCE_METRIC,2.07,54,4,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=82b8846a1dcf766318aeae1714104b767c7f64f2e578bad7398264af0df50870 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=24cced55590f2317ed8b2c0bb5f693e2a0ca0b1173463789fa243802969943df in 0.50s
+SOURCE_METRIC,3.07,56,6,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=dfec0f275cb29342234b409294a13228f0e465114ae0d171451449d796ae8876 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1487b9145be7a61cc7ff14fd12a157672b448a0e4162cbf1321e1a2cb87bda94 in 0.50s
+SOURCE_METRIC,4.07,58,8,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=1d040b4fc0a25cab9a12396ecbdbd7a23bb9abdcd2cc9d5fb3df4c574fe21279 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=23116eed99f9dc60f1d83a58b43c458e8fb98973b4e5ccedb1d18c7a5bdc32dc in 0.50s
+SOURCE_METRIC,5.07,60,10,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=81e1eaa3bf3e829493a289033e316026179272d3fddff956c2370693b1661d36 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=50cbd53c72461207da6eef5f36fe0539362835eff564d362e7a656bd49baa103 in 0.50s
+SOURCE_METRIC,6.07,62,12,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=076a913289480a3a3721b6a23491e2b0dbcf75176910cf2c13457e6792e78e21 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=03f7319e7bd038b83f606687cd87663783eda8bd9dc126f025fe3288d4a7dced in 0.50s
+SOURCE_METRIC,7.07,64,14,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9ec32cf80d465bd5d7c9479b5542165597fbe3a67fa1a667e1d217aa36725219 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=9ec32cf80d465bd5d7c9479b5542165597fbe3a67fa1a667e1d217aa36725219 in 1.00s
+SOURCE_METRIC,8.07,65,16,0,1.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=fba573f690b2e6f9564896fbd918be7004ed82cdc63d291d0be1505320e1af35 in 0.50s
+SOURCE_METRIC,9.07,67,17,0,2.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=aa91a4ca5f0d3c1ce1a7ce929078a27550975e6c6e2f01b2e4523946b84593e2 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=96fd3431315fc31a4aff92ee452b466371122302cc903bc9cee71363fe3ec902 in 0.50s
+SOURCE_METRIC,10.08,69,19,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=6bd4da5bb5872c156dc25ce4b4686214396ea6447526f57c8f73574fcf61e47e in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=062c1c0008be95ad950a55178fdd29818f4c6911ee07006d03ce5d4c9066c679 in 0.50s
+SOURCE_METRIC,11.08,71,21,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=15174e805e3025b886cdee134a8ee526eea0f490e9bac2359aed4dc65f194920 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=18824ac580c683edf03d7bd3b6e3e98a54c5e0d0acbcd00d93acf355df9b208f in 0.50s
+SOURCE_METRIC,12.08,73,23,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=d36bf7c479864caea02df73563ed497dccd3d10c7692ad0a1013299af91c03f3 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ddef0b7842273bf299b965cbf0ef7794b7c1abd0741d8787fe3214222f7034a9 in 0.50s
+SOURCE_METRIC,13.08,75,25,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f8217e62e429e2c77efbb93193842959797bbe6616ea99635082f534a4ea58a7 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=b63538a5c20f5345845489e423c0020d90104ebda860489b1967bb17cdd67f59 in 0.50s
+SOURCE_METRIC,14.08,77,27,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=0100557a991c654f34bcbcb997a76ab726a2e992f9fad6b34a115dcce4170770 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=69a4ba017e2ba1263d6cb2bb28540ab71c920768fb1811f14664c4d57b586ebb in 0.50s
+SOURCE_METRIC,15.08,79,29,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=08b02becc7be4b1457d7b08b1addc988bf851a539a856afb6b031ee6380cec90 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=4d986b79c63baf5474f180d5aa3d7f3805ffa12bd54916b3e962b366afcaddbc in 0.50s
+SOURCE_METRIC,16.08,81,31,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=d2e40d4530ead664d9cb5ed8dc62386d9689803e0dd7df4728a1dc2fde016fd8 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=a429c110a30dd67d4a64d55ba071a68fd273860836499b47e485fa710df2b4b0 in 0.50s
+SOURCE_METRIC,17.08,83,33,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9c5aec4fe6231b10463548a733789f7b8189638c420709118bf9740ac231e662 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=182748e2cb5f3e6cd94905f0b24fb5ac34917b9186353faf911b2f86cc69fe37 in 0.50s
+SOURCE_METRIC,18.09,85,35,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f66f0e096855df0f8777191792ab668d23d56515f918d29f8ff59f43bb7e9761 in 0.50s
+SOURCE_METRIC,19.09,86,36,0,1.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9e883277f8d846c722db131daf173d80fb983520af797e356654a09dfcd6658c in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=123577e4d0381dc4681bb530c7b71150d6ace5c999b65d9d30d616369d00b077 in 0.50s
+SOURCE_METRIC,20.09,88,38,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=b72b0d7bbd1376c1ffc3b9850065c96d24429e003793ad61bc85cfec47b6a6ae in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=92cbb07d306a925ad441656c46e496e554942998f827081ef25d1b91d0a46f11 in 0.50s
+SOURCE_METRIC,21.09,90,40,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=571dc5dfa60b1b1110d9cd25f8f49b73f06e6a6a4ee5a4b0eb74bee9be039b0a in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e458e0ba772e1c62abe0faa558921913ec726d1e11c8310518bfe6a6238a6a9a in 0.50s
+SOURCE_METRIC,22.09,92,42,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=1d0f668e71774b15f4ffe6e3576a44d6d10a9343427f70bb91a50786e7b31799 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=f6a16c615b449a0b799d5a73c3b1f32834938a280d2c08881bc78586190bde5e in 0.50s
+SOURCE_METRIC,23.09,94,44,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=16d618690e9e198ad9036141e37c7035ce043293b52ed172b1db39f66ca5a991 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=84c0664fd7201b36ba0aff1ebc0c19dfe30e1ddacf4652a4ed6225b39b17f9b4 in 0.50s
+SOURCE_METRIC,24.09,96,46,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=e1f16c0649344908200e6981e62429fd48272de0d38e817d80a832288dda2953 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=9d76e79b54b213b45139c88c0e219a7ecd4a0fa46f8e5e4a2c755fbfc0d6c28e in 0.50s
+SOURCE_METRIC,25.1,98,48,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9d76e79b54b213b45139c88c0e219a7ecd4a0fa46f8e5e4a2c755fbfc0d6c28e in 1.00s
+SOURCE_METRIC,26.1,98,49,0,0.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=34cd1d7dc5856c139a0b9ccdc2c17b31e6751187b0be531e8f1fe314832f9728 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=290b62d4d9bbfe76046046131649ae79a9ff3ca60e1c7a9ec59916801597e760 in 0.50s
+SOURCE_METRIC,27.1,101,51,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=e5a37e629ddb810c4cf512d99d42ccd61c32c4d1a1f1298123b003fb2715d8a9 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ca5b4e9911ffb0f3ef85e4564b8d26f567a8de37163e132d3958afd755393e29 in 0.50s
+SOURCE_METRIC,28.1,103,53,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=e487558f05af3b82bff7527a566f799a4b355f795563aefd91e7012484df3cf5 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e8f2250d5ebba747c5a6a114461048be8c463cfab5a0cfa9a20a9ba5448b334c in 0.50s
+SOURCE_METRIC,29.1,105,55,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=7455dbea2fdd49d0997bf11612fada7d385a1874d8081444eec7ce3d5b198d60 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e1110ad0b433f660bc0992ef995bfe9523a8971985c5e35afe6c23b73f427632 in 0.50s
+SOURCE_METRIC,30.1,107,57,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=466a23ac6627c9d476f0b59317530421bf955b22c3534c9cacdd5f5eedfa66f4 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=7e0a9b4a90fca1c277898a82d1cb8d76c8576dfde9a815f52ecfa4b7406bf6e2 in 0.50s
+SOURCE_METRIC,31.11,109,59,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=10f7bc921512fd893bbafbc53761bff95a6e4f4d3bb940f44ac21b7e8e84341e in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=f71fe1d513eebcf1470d9afd40e1413924be361333bc9fe1ed9b3433e4c50b2b in 0.50s
+SOURCE_METRIC,32.11,111,61,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f8d835a119f3f1b45e56a5e275384f3b831154c45c80f17c5b448d2a1d66a113 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=06c58c4d23e261151d517a8a8a1a85ead314f0694f72a194f824f5bcef12b7ef in 0.50s
+SOURCE_METRIC,33.11,113,63,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=4fe17efbc3f869625c6e78c50dc1fa2e16dfcebedce9ca9c1d72c3ba9b32f9c9 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=d636595f981daef452d83daaf522009df5dfe84fbca4532af4b9e5511c1383a3 in 0.50s
+SOURCE_METRIC,34.11,115,65,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=646a0b3601e908c3d62e4dfb53723c3de721ecdd3b8344b19d16efbcb7b9d18b in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=0d89d2c1423b121dba835a57ca21d12e05a77c731663ce216151b406e6970789 in 0.50s
+SOURCE_METRIC,35.11,117,67,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=0778ba3147cd0a12a0f38c262ca5738838df4584d17a628db07c602a9a6a0c22 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e9bc05cb7a2f26fe9991626f603c1d7d82e5082bee5652449cf09d1e5cae5c51 in 0.50s
+SOURCE_METRIC,36.11,119,69,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=5ad8b72aadeae5e6f1231dafaaa952f749977760b207529e2a3415c5d3d402c0 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=df7c92f9fcaf8a8bdddb85366fa7015f99064387f4c0720764a508cb3f2d5c77 in 0.50s
+SOURCE_METRIC,37.11,121,71,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=992022e1308a157e8efcb5565291b86acdcac0eae40f293d5c41444684ff9296 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=d3c5621d5744bf3c5e3d409f320aa9d844c98378f362436196ca717a1d8dc97d in 0.50s
+SOURCE_METRIC,38.11,123,73,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=a829a76ba4e0370b5ade2bfd41f64d11c308d449abca33e43bc502728bd22093 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ee8ce48fd8cefb95ab152c7bfc316439e4356a0889d619fa47a56e81d57c8c38 in 0.50s
+SOURCE_METRIC,39.12,125,75,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ab842cda1de53ed54f11382fccbe7e7a92f26747658a85b68e7a9a84ba2d7853 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=7d592b8e5a8bf907b72daacc2635e652a4bca4ed0f9c0f5bf2b9b8782b677eca in 0.50s
+SOURCE_METRIC,40.12,127,77,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=25d83ff7a41124224fbb8956131a2c2ebe64aed648b1861383dc07530e5fe8eb in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=5cac24e7c003b4e8b573b98f36b51767f2d14c64b1af5942b5a980dcb9252a26 in 0.50s
+SOURCE_METRIC,41.12,129,79,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9d8ea7f0af90acc4878c5ad65cfe352ed8b93f7007480750ab2064fd3650c5b3 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=60d0eafc8de73574509037da429dbaeb6064d18a1780e7f988fe93034a2297e1 in 0.50s
+SOURCE_METRIC,42.12,131,81,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=60d0eafc8de73574509037da429dbaeb6064d18a1780e7f988fe93034a2297e1 in 1.00s
+SOURCE_METRIC,43.12,131,82,0,0.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=3c08e3136b72a139b621303f794e19cc76760c7a9633853beb082ddde50019f8 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=17bc2ab02a09c67d06712cff3d8df496db6a8027e97c0f740851f6cf5ab89be3 in 0.50s
+SOURCE_METRIC,44.12,134,84,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=df5f8e5b97f3d3d9c47ffe7459d67f99674a420dfe06ba53940c30dc466c1169 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ffb3669e4ea52bd901ad4d03503de7a3a12261ec8c40e6a81fe8472cdbd4e569 in 0.50s
+SOURCE_METRIC,45.12,136,86,0,1.99,1.99,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=344a3860bc686cebf3896b4c1fa02d4f1b5a8779cf5c5fb94881f613e4189dcb in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=6b0c095b0d05d91a70e06e8f06156397494525a7e0037c6e54f553fbc37d2df2 in 0.50s
+SOURCE_METRIC,46.13,138,88,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ded617f7a2cce74ff17052ce1c4728a32ffedee820e20c5f8e246d53415e61f2 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=0e0e87acc9991b321462d4e304f40fdc9d831190a605edf973e8eaca88440e67 in 0.50s
+SOURCE_METRIC,47.13,140,90,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ff443e0183d4090f365d49153ba4a475db1521f2ac7410a38f6960730966b5a7 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1c045632c263dcf6e4b520bfdeac1aa1375aeca4939a7e53229984c94b22ccd2 in 0.50s
+SOURCE_METRIC,48.13,142,92,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=9ed1e551f0a03a6dec67e707a35f718e57bba655cf619fa7acf3bffe559edf78 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=bb6db34a345321af4a4e7cf9241d7480155f257bbb2f0f04659cdc36aa355d2b in 0.50s
+SOURCE_METRIC,49.13,144,94,0,2.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=88f764ec5345aa76eca124e0e8dedeefed16c7ec43454a3a3a56dc81f689bc1b in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=f53554fcd4d4556e764660cf2b04dd4aac7d3bc24cfa0e63decf2fe3fc2cb6d1 in 0.50s
+SOURCE_METRIC,50.13,147,96,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ffe012071267517be82ad81feed19c64e95c78b11d75bc68623b431fe61d2e9b in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=18047881f93b7121677cee2949ba0dab47f19fa3bf2af58c5d9c41c47bf325d5 in 0.50s
+SOURCE_METRIC,51.13,151,98,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=332ca3d25caae8ba67a919d834d2037a3ee24d9f4ef80c5b6020033b5ddfabe3 in 0.50s
+SOURCE_METRIC,52.13,154,99,0,3.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=2e7b575f96d8225bb3ee35e27b89d0ed630df7da753574b4eb9cf3a09ef5b605 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=597dacb131903ee23da63810b159b43c82f3f7fe6d8372d7cc02e20263253ec3 in 0.50s
+SOURCE_METRIC,53.13,157,101,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=d059cc24db0db60bf4315f9ef1b484351925cb36bca1405fbf90c1260e05f020 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=62034de92767805e62983e43d410e4d7b36ce12490471f2a8e40ae4a8a0350ab in 0.50s
+SOURCE_METRIC,54.14,161,103,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=55d9a31d08315375c9009f13df4b65f33a16bbbf869648f17d2b26f48b43b0df in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=41c1b77a7356c928861fadeaeeb163c031701f9f2ea18a4268b49db01a902d98 in 0.50s
+SOURCE_METRIC,55.14,165,105,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=444696f78ae861063d1a16f02e489bcbf5a6a72c3ebffd0c178794a6f0c30aa4 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=40d322038e94ca3a5d238f693e1eb053cfc5dbd00697010fe07195a24a4fd0c7 in 0.50s
+SOURCE_METRIC,56.14,169,107,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=a6652c53d16d4f8a5dd9e5227d08be3d17971bd6399b2e5a0179fcfddf110abe in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=9205e3511fc101be12cb8bd93ccd101295c55983c7a76fbed34f3591cf7bf3dd in 0.50s
+SOURCE_METRIC,57.14,173,109,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=d4dc925d4c56fa05fc99c752f797db3a111db5431f0545d9cea303fea0bf082d in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ad97f87cb51af77a418efa25c529583a7d776be5172bba49724ffe01e4d92799 in 0.50s
+SOURCE_METRIC,58.14,177,111,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f0b3059205c6b28e0b0655bb84e65ab5ba0524bee7b093b4fa92e75b7aa2a837 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=a2b56b4caf9441dd8f42db930bf97ee341ec3376966400f979a47a31fd74658f in 0.50s
+SOURCE_METRIC,59.14,181,113,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=8898336b01c3b93c03aa99a58d6fe67e971ea92dc9e8295049e7640a0541ad2e in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e20ce0131da728122bbc7531b630cdf3ffc75de8dbc30a5ec16a1a35b35c0c33 in 0.50s
+SOURCE_METRIC,60.14,185,115,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=a62076dda7ffed1c7ae3c54450772860362678c221bc9d2b67f362960eea2ea4 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e3d05f0a1087eaf9e1f9d87e4d272067b758f1ef28abf102316cd731f58c1f6a in 0.50s
+SOURCE_METRIC,61.15,189,117,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=10739eb99ae7d9171e0681cb2189a5118d38e1640aa9e65ede4e67f48ac88af0 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=748183c758a24b14399750a07ed538ad0724990cffa5af3e5d29c35ec97d89af in 0.50s
+SOURCE_METRIC,62.15,193,119,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=78b04db8d4fa1795a87ec6d181d5483e6b42a6b92cc98d85e0d51f7251831f2e in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=9a8fd8db5a04b32f4a44bff4195fb5403790264fc1e5ff2f38e990bb95d41ba9 in 0.50s
+SOURCE_METRIC,63.15,197,121,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=c947c6bc39e17d692e042c105b3725ea18570da5d71318260abccf96056194b4 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=f1eed4fd23d5d7500628d95bfca571cc9b1e891803a474e9c9563e182a74082c in 0.50s
+SOURCE_METRIC,64.15,200,123,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=1b46584ddfd137168c0cd5e0a84d43c9a396a73fb1459c459cfee7055978ea56 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=69cd3086cefa52cb82aaeae7caf7456a705cbfb9464e26c9ea9638ffe2a73e01 in 0.50s
+SOURCE_METRIC,65.15,204,125,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ff2e882e3505cbc7ca43961a984ba40f2a5703aa265560334a88dc23d9ad8762 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=3c03d5f98c09dbe235687ed20fa1d19a5f22bd176f0b01ac658ec1f17e8be391 in 0.50s
+SOURCE_METRIC,66.15,208,127,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=58fdc3c8db768a3828d666198a9ef710e8ffba5aed2f0c63024c830cc5034fcf in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=2bd081c8933dc3002f80529f9512cb383a2d2f63b974dbed6ffe06acbbca57b6 in 0.50s
+SOURCE_METRIC,67.15,212,129,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=028cb2733716684a77d9c7136fba0eb649b91f54d2f607666be12a4958c98998 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=14d83b2f71235ab26ea811904231030f4d46c2b386a0fab69ad09f6375a8a014 in 0.50s
+SOURCE_METRIC,68.15,216,131,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=3e048101a4d2f590220d53bdf550346b5e14f30a52b7b12c24524f9a0577d861 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1e2ee6d2fcb6de8151ca26a843ba5782e2bb070572d35d2b7ce321b6cae0b3a7 in 0.50s
+SOURCE_METRIC,69.15,220,133,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=6be4e90c931e5367ca39c4f3c3b79428458c52ed6b95e46ff0dddc2a07bdc420 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=23dbca4d57be80bf5389b0af9e6156a9a00cc627b61cd2c08f7417e9bccf37d4 in 0.50s
+SOURCE_METRIC,70.16,224,135,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=ee013020cefdfabd9e40ba005553a620dfcbc6ea3549f1d8b4e4f9f0474ef03e in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=9cf59dc0db767906fa2520317c9b3191529d0e518415381cccb5f29c5398cf7a in 0.50s
+SOURCE_METRIC,71.16,228,137,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=912ada0e36ac8ca1e9e19313ca360ce3ebc79b2fa7130081f302a022cc4a26c6 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=d41e83356a28fd884f6d8c3231b768100b1f243c71f2675ed50a2b9a3788d398 in 0.50s
+SOURCE_METRIC,72.16,232,139,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=762fb934a8a861837ed3314eaa347a859c8c505d20e8f91471a6d4361207e29c in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=91fe791e0002db41a3c030a0b7c1a3f679363b6d46bbf2edc843500334a8637d in 0.50s
+SOURCE_METRIC,73.16,235,141,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=233a775638e72a57fffc0de537bc4f06eaf0641f565e573f464aa119120d9ae1 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1da1a01481f2d6e3b45a5071ce079d3c14fce4332bb5ba15f4cbfb14ee24c2cd in 0.50s
+SOURCE_METRIC,74.16,239,143,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=2366b414e1ba5eff6e44dad72ca557dbf112eb5c4c5b74d6caf11f37782d6f37 in 0.50s
+SOURCE_METRIC,75.16,241,144,0,2.0,1.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=24e173e835194af3c9ea36f66e7bc314b0420d4f6bc66a0453f1a7bf733a54d6 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=e6c7d9cfbabf34d343ab880dc087eb87725a85ba7a8702d29a92588e3c93da63 in 0.50s
+SOURCE_METRIC,76.16,245,146,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=c26bb9903983fc4e1f754d1cc7ce3273a9f5d99a0f35c6bb5e4021d779a7529d in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=84b881f0a54badaa822b59b7f7bf1e316540af920f7d932944ef9a06e5ce8692 in 0.50s
+SOURCE_METRIC,77.16,249,148,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f3dd5e020dbc3f488dddf1ca59ace4647f1d92ec424d224bcdeaa5b0d17edcab in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1188446c7a0f2691859e08e17ebe334d54e5d740e6ca4325de389d8dbde3a3fc in 0.50s
+SOURCE_METRIC,78.16,253,150,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=e82275221ae771bcdcf8e2af568843136df91b97f4e0bf5c073d0e977c5b8826 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=f32923946ce70c08e9deb59dec177470ee848475259092947c95766b3d58f383 in 0.50s
+SOURCE_METRIC,79.17,257,152,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=29c5590a6930f5015042af95bf3c07c0e58ca51b5b12a958274c4c6e0022216f in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=934bcba1edb0ac69414a70d37ca27da6a692029f48c6a21f6e509012ca824be4 in 0.50s
+SOURCE_METRIC,80.17,261,154,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=22eab17b52aefe71c06fecfe711a89f15c3290978c367ec79f5020e37795ff8f in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=5602c14cfdf1375f5b382a1b060bb310173648d3ea71886fda6c562fb3dbe1b7 in 0.50s
+SOURCE_METRIC,81.17,265,156,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=a3fbb951799fdc9cdd200cbf4443881ad3d61f095501960e599f2c70f72bcb10 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1bec671db9ab71f4ae868a359ac5cb5dbf7b55e08e0cf05d0654c440174efed7 in 0.50s
+SOURCE_METRIC,82.17,269,158,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=b7f77882114aa80e38d97597cbe0f89c8a7efa837244bf9a362479cf01ffc9b5 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=2e213988e3c3dd1d0c266e385aca0e586080a03ecdd63c21520dd4be0cba5000 in 0.50s
+SOURCE_METRIC,83.17,273,160,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=3739e15cb266e8ac55dcc8d328373edf6eb582b7c0df2105c1d3cbdd98531aa5 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=a045a64538e253ce3970ecf44b825689d0cdad0056863203d2a82e86a92ae7dc in 0.50s
+SOURCE_METRIC,84.17,277,162,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=25e11a8cfd3fe6f9112f79c1816f128027128f26d5912013be21a4520bb85fd3 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=db393c3d1d87766ffabb96ebcd7ee52b5674b68be711045022b81a19a7f25808 in 0.50s
+SOURCE_METRIC,85.18,281,164,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=941b53013487fa04ebfc57e6111702030d7382b209ddc17515973ed0752566d8 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=ab15509ee503fe2ec91915d6c6bcfab5eeeb44395069405b845cb0334ff39501 in 0.50s
+SOURCE_METRIC,86.18,285,166,0,3.99,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=f633d8d5ef3f97e7591b376412dc0d70da054bf1f8ae76d813852f246a914626 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=1da4442dd500f9824bce5fb0a8340a2a3443608dcc8ede5e2d43d2daaf7df4d0 in 0.50s
+SOURCE_METRIC,87.18,289,168,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=667039c18f60b224d3dbcf1d91f7b133c373b3d6ab6b8ab8e37e93b01a6cb665 in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=6c3df473e919ca7bbac25a3b161ef4143ba4a751a27f69bc512d89d35f336bc3 in 0.50s
+SOURCE_METRIC,88.18,292,170,0,3.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=4c429a6e01eac9fa0bafaeba76efbaa6f4d5ef1ec12b12dc0f5ca351c4f488ca in 0.50s
+WARNING:__main__:Publication not confirmed; retry task_id=4eebfe1420a9a8bc4a49c608201824ad3cf98d8c9e098eaaa0e60bc96501c38a in 0.50s
+SOURCE_METRIC,89.18,296,172,0,4.0,2.0,1,54.6
+WARNING:__main__:Publication not confirmed; retry task_id=27607e7fd61a075934778d2f4bb7fd30550f0f5e8d2477d7645ae2c971a2e6ca in 0.50s
+INFO:__main__:Finished: accepted=299 rejected_attempts=173 lost=0

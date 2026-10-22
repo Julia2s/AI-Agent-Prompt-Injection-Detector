@@ -5,10 +5,14 @@ from fastapi import APIRouter
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
-from src.core.database import engine
+from src.core.broker import pipeline_settings
 
 router = APIRouter(prefix="/api/v1", tags=["health"])
+
+# A tiny engine just for the health-check probe. The task store has its own engine.
+health_engine = create_async_engine(pipeline_settings.database_url, pool_pre_ping=True)
 
 
 class HealthResponse(BaseModel):
@@ -31,8 +35,8 @@ async def health_check():
     db_latency_ms = None
 
     try:
-        async with engine.connect() as conn:
-            await conn.execute(text("SELECT 1"))  # <-- ИСПРАВЛЕНО
+        async with health_engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
         db_status = "connected"
         db_latency_ms = round((time.perf_counter() - start_time) * 1000, 2)
         logger.info(f"Health check PASSED. DB latency: {db_latency_ms}ms")

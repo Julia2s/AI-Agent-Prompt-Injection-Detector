@@ -16,7 +16,7 @@ async def test_health_success(async_client: AsyncClient, monkeypatch):
     mock_engine = MagicMock()
     mock_engine.connect = MagicMock(return_value=mock_conn)
 
-    monkeypatch.setattr(health_module, "engine", mock_engine)
+    monkeypatch.setattr(health_module, "health_engine", mock_engine)
 
     response = await async_client.get("/api/v1/health")
 
@@ -38,7 +38,7 @@ async def test_health_db_failure(async_client: AsyncClient, monkeypatch):
     mock_engine = MagicMock()
     mock_engine.connect = MagicMock(return_value=mock_conn)
 
-    monkeypatch.setattr(health_module, "engine", mock_engine)
+    monkeypatch.setattr(health_module, "health_engine", mock_engine)
 
     response = await async_client.get("/api/v1/health")
 

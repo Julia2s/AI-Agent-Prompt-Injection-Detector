@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from src.core.config import settings
+from src.core.broker import pipeline_settings
 
 router = APIRouter(prefix="/api/v1", tags=["info"])
 
@@ -13,8 +13,7 @@ class VersionResponse(BaseModel):
 
 @router.get("/version", response_model=VersionResponse, summary="Get app version")
 async def get_version():
-    """Возвращает текущую версию и имя приложения из конфига"""
     return {
-        "app_name": settings.APP_NAME,
-        "version": settings.APP_VERSION,
+        "app_name": pipeline_settings.app_name,
+        "version": pipeline_settings.app_version,
     }

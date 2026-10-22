@@ -73,12 +73,13 @@ async def test_real_overflow_backpressure_and_api(settings, monkeypatch):
             await publish_task(broker, settings, {"task_id": str(index), "text": "hi"})
         with pytest.raises(TRANSIENT_ERRORS):
             await publish_task(broker, settings, {"task_id": "rejected", "text": "hi"})
-        monkeypatch.setattr(tasks, "broker", broker)
-        monkeypatch.setattr(tasks, "pipeline_settings", settings)
-        app = FastAPI()
-        app.include_router(tasks.router)
         store = ResultStore(settings.database_url)
         await store.initialize()
+        monkeypatch.setattr(tasks, "broker", broker)
+        monkeypatch.setattr(tasks, "pipeline_settings", settings)
+        monkeypatch.setattr(tasks, "store", store)
+        app = FastAPI()
+        app.include_router(tasks.router)
         async with AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
         ) as client:
@@ -89,7 +90,8 @@ async def test_real_overflow_backpressure_and_api(settings, monkeypatch):
         assert response.status_code == 503
         assert "Retry-After" in response.headers
         assert time.monotonic() - started < settings.publish_timeout + 0.5
-        assert await store.get("api-full") is None
+        assert await store.get("api-full") is None  # no PENDING ghost left behind
+        assert response.json()["detail"]["task_id"] == "api-full"
         pending = asyncio.create_task(
             send_with_backpressure(
                 broker, settings, {"task_id": "retained", "text": "hi"}
@@ -158,6 +160,11 @@ async def test_real_worker_duplicate_and_dlq(settings):
         await worker.store.close()
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows has no real SIGTERM: send_signal() kills the process at once. "
+    "Run this test on Linux/WSL/CI, or check graceful shutdown in docker compose.",
+)
 @pytest.mark.asyncio
 async def test_sigterm_finishes_accepted_message(settings, tmp_path):
     marker = tmp_path / "inference-started"
@@ -199,3 +206,48 @@ async def test_sigterm_finishes_accepted_message(settings, tmp_path):
             process.kill()
             await asyncio.to_thread(process.wait)
         await store.close()
+
+
+@pytest.mark.asyncio
+async def test_source_rate_converges_to_worker_throughput(settings):
+    """Steady state: accepted publish rate == worker throughput; depth <= limit."""
+    settings.inference_delay = 0.1  # one thread -> ~10 tasks/s
+    settings.queue_capacity = 5
+    settings.queue_name = "rate_" + uuid.uuid4().hex
+    model = Mock()
+    model.predict.return_value = [1]
+    worker = Worker(settings, model_loader=lambda _: model)
+    await worker.start()
+    await worker.broker.start()
+    depth, accepted_at = [], []
+    connection = await aio_pika.connect_robust(settings.rabbitmq_url)
+    try:
+        async with connection, make_broker(settings) as publisher:
+            channel = await connection.channel()
+            await channel.declare_queue(settings.queue_name, passive=True)
+
+            async def source():
+                for index in range(10_000):
+                    await send_with_backpressure(
+                        publisher, settings, {"task_id": f"r{index}", "text": "hi"}
+                    )
+                    accepted_at.append(time.monotonic())
+
+            task = asyncio.create_task(source())
+            started = time.monotonic()
+            while time.monotonic() - started < 8:
+                await asyncio.sleep(0.1)
+                declared = await channel.declare_queue(
+                    settings.queue_name, passive=True
+                )
+                depth.append(declared.declaration_result.message_count)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+    finally:
+        await worker.broker.stop()
+        worker.pool.shutdown(wait=True)
+        await worker.store.close()
+    assert max(depth) <= settings.queue_capacity
+    steady = [t for t in accepted_at if t - started > 3]  # skip the fill-up phase
+    rate = len(steady) / (accepted_at[-1] - (started + 3))
+    assert 5 <= rate <= 15, f"source rate {rate:.1f}/s vs worker ~10/s"
