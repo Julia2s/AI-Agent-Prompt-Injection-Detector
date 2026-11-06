@@ -10,6 +10,9 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.35",
     "pydantic-settings>=2.6.0",
     "loguru>=0.7.2",
+    "mlflow>=2.10.0", 
+    "scikit-learn>=1.6.1",
+    "pandas>=2.0.0",
 ]
 
 [project.optional-dependencies]

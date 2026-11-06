@@ -1,0 +1,142 @@
+[
+  {
+    "file": "Dockerfile",
+    "change": "modified"
+  },
+  {
+    "file": ".dockerignore",
+    "change": "added"
+  },
+  {
+    "file": ".gitignore",
+    "change": "modified"
+  },
+  {
+    "file": "docker-compose.yml",
+    "change": "modified"
+  },
+  {
+    "file": "README.md",
+    "change": "modified"
+  },
+  {
+    "file": ".env.example",
+    "change": "modified"
+  },
+  {
+    "file": "mlops/handoff.py",
+    "change": "added"
+  },
+  {
+    "file": "mlops/__init__.py",
+    "change": "added"
+  },
+  {
+    "file": "mlops/data.py",
+    "change": "added"
+  },
+  {
+    "file": "mlops/pipeline.py",
+    "change": "added"
+  },
+  {
+    "file": "infra/Dockerfile.mlflow",
+    "change": "added"
+  },
+  {
+    "file": "infra/requirements.in",
+    "change": "added"
+  },
+  {
+    "file": "infra/requirements.lock",
+    "change": "added"
+  },
+  {
+    "file": "infra/start_server.py",
+    "change": "added"
+  },
+  {
+    "file": "docs/DEFENSE.md",
+    "change": "added"
+  },
+  {
+    "file": "docs/VERIFICATION.md",
+    "change": "added"
+  },
+  {
+    "file": "docs/START_HERE.md",
+    "change": "added"
+  },
+  {
+    "file": "docs/README_DZ2.md",
+    "change": "added"
+  },
+  {
+    "file": "docs/COMMITS.md",
+    "change": "added"
+  },
+  {
+    "file": "docs/HANDOFF.md",
+    "change": "added"
+  },
+  {
+    "file": ".github/workflows/ci.yml",
+    "change": "modified"
+  },
+  {
+    "file": "src/core/config.py",
+    "change": "modified"
+  },
+  {
+    "file": "data/raw/source.json",
+    "change": "added"
+  },
+  {
+    "file": "data/raw/train-00000-of-00001-9564e8b05b4757ab.parquet",
+    "change": "added"
+  },
+  {
+    "file": "data/raw/README.md",
+    "change": "added"
+  },
+  {
+    "file": "data/raw/test-00000-of-00001-701d16158af87368.parquet",
+    "change": "added"
+  },
+  {
+    "file": "data/processed/train.csv",
+    "change": "added"
+  },
+  {
+    "file": "data/processed/test.csv",
+    "change": "added"
+  },
+  {
+    "file": "data/processed/validation.csv",
+    "change": "added"
+  },
+  {
+    "file": "infra/tests/test_data_pipeline.py",
+    "change": "added"
+  },
+  {
+    "file": "docs/eda/text_lengths.png",
+    "change": "added"
+  },
+  {
+    "file": "docs/eda/length_statistics.csv",
+    "change": "added"
+  },
+  {
+    "file": "docs/eda/quality.json",
+    "change": "added"
+  },
+  {
+    "file": "docs/eda/class_balance.png",
+    "change": "added"
+  },
+  {
+    "file": "docs/eda/EDA.md",
+    "change": "added"
+  }
+]

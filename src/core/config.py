@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = "password"
     DB_NAME: str = "detector_db"
 
+    MLFLOW_TRACKING_URI: str = "http://localhost:5000"
+    MODEL_NAME: str = "prompt-injection-detector"
+    MODEL_ALIAS: str = "champion"
+
     @property
     def DATABASE_URL(self) -> str:  # noqa: N802
         return (
@@ -23,6 +27,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
 

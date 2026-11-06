@@ -1,174 +1,101 @@
-# AI Agent Prompt Injection Detector
+# Prompt Injection Detector
 
-Асинхронное веб-приложение на FastAPI для детектирования prompt injection атак в AI-агентах.
+Detection service for prompt injection attacks in AI agent inputs.
+MLflow tracks data lineage, experiments and the registered model.
 
-## Архитектура проекта
+## Architecture
 
 ```
-src/
-├── api/v1/routes/    # Эндпоинты API (healthz, version, health)
-├── core/             # Конфигурация, БД, логирование
-└── main.py           # Точка входа FastAPI
-tests/                # Тесты с покрытием ≥80%
-.github/workflows/    # CI/CD пайплайны
+Dataset (deepset/prompt-injections)
+       ↓
+data-pipeline  ─→  MLflow Tracking Server  ←── MLflow Model Registry
+  EDA / splits        PostgreSQL backend            prompt-injection-detector
+       ↓                                              ↑
+  handoff.json ─→  train.py (experiments) ─→  /process endpoint
 ```
 
-## Требования
+- **`app`** — FastAPI service, `POST /api/v1/process`, inference via `models:/prompt-injection-detector@champion`.
+- **`db`** — application PostgreSQL.
+- **`mlflow` / `mlflow-db`** — MLflow Tracking Server with its own PostgreSQL backend and file-based Artifact Store.
+- **`data-pipeline`** — one-shot job: validates raw data, splits, runs EDA, logs everything to MLflow, writes `handoff.json`.
 
-- Python 3.11+
-- Docker & Docker Compose
-- Менеджер пакетов: `uv`
-
-## Локальный запуск
-
-### Без Docker
+## Quick start
 
 ```bash
-# Установка зависимостей
-uv sync --dev
-
-# Запуск приложения
-uv run uvicorn src.main:app --reload
+docker compose up --build -d
+docker compose logs -f data-pipeline          # wait until the pipeline run finishes
 ```
 
-### С Docker Compose
+| Service | URL |
+| --- | --- |
+| MLflow UI | http://localhost:5000 |
+| API docs | http://localhost:8000/docs |
+| API health | http://localhost:8000/healthz |
+
+Run the pipeline again:
 
 ```bash
-# Сборка и запуск (приложение + PostgreSQL)
-docker compose up --build
-
-# Приложение доступно на http://localhost:8000
-# PostgreSQL на порту 5432
+docker compose up --no-deps data-pipeline
+docker compose cp data-pipeline:/work/outputs/. ./outputs/
 ```
 
-## API Endpoints
+## MLflow
 
-| Метод | Путь | Описание |
-|-------|------|----------|
-| GET | `/healthz` | Быстрая проверка живости (liveness probe) |
-| GET | `/api/v1/version` | Версия приложения и имя |
-| GET | `/api/v1/health` | End-to-end health check с латентностью БД и версиями зависимостей |
+Open http://localhost:5000 → experiment `prompt-injection` → run `infrastructure-data-eda`.
 
-### Примеры запросов
+- **Inputs / Datasets** — lineage: raw data, train / validation / test splits, all tied to the same Hugging Face revision.
+- **Artifacts** — EDA CSV/JSON, class-balance and length plots, raw data, processed CSVs, `handoff.json`.
+- **Experiment `prompt-injection-experiments`** — training runs: `baseline_tfidf_lr`, `improved_tfidf_lr_bigrams`, `random_forest_tfidf`. Each run logs accuracy, precision, recall, F1, a classification report and a confusion matrix.
+- **Model Registry** — best run is registered as `prompt-injection-detector` and aliased `champion`.
+
+Run training locally (requires MLflow server at `http://localhost:5000` and `outputs/handoff.json`):
 
 ```bash
-# Liveness probe
-curl http://localhost:8000/healthz
-
-# Версия приложения
-curl http://localhost:8000/api/v1/version
-
-# Полная проверка здоровья
-curl http://localhost:8000/api/v1/health
+python -m mlops.train
 ```
 
-## Тестирование
+## Dataset
+
+| | Rows | Injections | Benign |
+| --- | --- | --- | --- |
+| Train | 436 | 162 (37.2 %) | 274 |
+| Validation | 110 | 41 (37.3 %) | 69 |
+| Test | 116 | 60 (51.7 %) | 56 |
+
+Source: [deepset/prompt-injections](https://huggingface.co/datasets/deepset/prompt-injections), revision `4f61ecb038e9c3fb77e21034b22511b523772cdd`.
+Primary metric: **F1 for class 1 (injection)**. Accuracy is misleading because the test split has a very different class balance.
+
+## Project structure
+
+```
+├── docker-compose.yml        # services, healthchecks, volumes
+├── Dockerfile                 # FastAPI application image
+├── infra/
+│   ├── Dockerfile.mlflow      # MLflow server + pipeline image
+│   ├── requirements.lock      # pinned ML dependencies
+│   ├── start_server.py        # MLflow startup script
+│   ── tests/                 # data-quality and integration tests
+├── mlops/
+│   ├── data.py                # data loading and validation
+│   ├── pipeline.py            # EDA, splits, MLflow logging, handoff
+│   ├── handoff.py             # contract helper for the next run
+│   └── train.py               # training experiments and model registry
+├── data/
+│   ├── raw/                   # original dataset + SHA-256 manifest
+│   └── processed/             # CSV splits from the pipeline
+├── docs/
+│   └── eda/                   # EDA report and plots
+├── src/                       # FastAPI application
+│   └── api/v1/
+└── tests/                     # API tests
+```
+
+## Verification (no Docker)
 
 ```bash
-# Запуск тестов с измерением покрытия
-uv run pytest --cov=src tests/ --cov-report=term-missing --cov-fail-under=80
+uv venv .venv-ml --python 3.11
+uv pip install --python .venv-ml/Scripts/python.exe -r infra/requirements.lock pytest==8.3.5 ruff==0.11.2
+.venv-ml/Scripts/python.exe -m pytest infra/tests -q
+.venv-ml/Scripts/python.exe -m ruff check mlops infra
+.venv-ml/Scripts/python.exe -m ruff format --check mlops infra
 ```
-
-Минимальный порог покрытия: **80%**.
-
-## Pre-commit хуки
-
-Проект использует pre-commit для автоматических проверок перед коммитом:
-
-- `trailing-whitespace` — удаление лишних пробелов
-- `end-of-file-fixer` — пустая строка в конце файла
-- `check-yaml` — валидация YAML
-- `check-added-large-files` — запрет больших файлов (>1MB)
-- `ruff` — линтер Python
-- `ruff-format` — форматирование кода
-
-Установка хуков:
-```bash
-uv run pre-commit install
-```
-
-## CI/CD Пайплайны
-
-### CI (Continuous Integration)
-
-Запускается автоматически при:
-- Push в ветки `main` и `develop`
-- Pull Request в `main`
-
-**Что проверяет:**
-- Линтинг (Ruff)
-- Форматирование кода
-- Запуск тестов
-
-Файл: `.github/workflows/ci.yml`
-
-### CD (Continuous Delivery)
-
-Запускается автоматически при:
-- Push тега формата `v*.*.*` (например, `v0.1.0`)
-- Push в ветку `main`
-
-**Что делает:**
-- Собирает Docker-образ
-- Публикует образ в GitHub Container Registry (GHCR)
-
-**Стратегия тегирования образов:**
-- `v{version}` — для релизных тегов (например, `v0.1.0`)
-- `main` — для актуальной версии из ветки main
-- `{short_sha}` — хеш коммита для точной идентификации
-
-Файл: `.github/workflows/cd.yml`
-
-### Обоснование условий запуска CD
-
-Пайплайн сборки и публикации образа настроен на запуск в двух случаях:
-
-1. **При создании Git-тега формата `v*.*.*`** — используется для фиксации стабильных релизных версий приложения. Образ получает семантический тег (например, `v0.1.0`), что гарантирует воспроизводимость и возможность отката к конкретной версии.
-
-2. **При push в ветку `main`** — используется для автоматического обновления образа с тегом `main`. Это обеспечивает актуальность артефакта для staging-окружения сразу после успешного прохождения CI и code review.
-
-Такая стратегия разделяет потоки ежедневной разработки и официальных релизов, соответствуя лучшим практикам GitOps и позволяя командам выбирать нужную версию образа для развёртывания.
-
-## Структура Docker
-
-### Dockerfile
-
-- Multi-stage сборка (builder + runner)
-- Запуск от non-root пользователя (`appuser`)
-- Минимальный образ на базе `python:3.11-slim`
-
-### docker-compose.yml
-
-- Сервис `app` — приложение FastAPI
-- Сервис `db` — PostgreSQL 15 Alpine
-- Healthcheck для БД
-- Лимиты логирования (max-size: 10m, max-file: 3)
-- Volume для персистентности данных БД
-
-## Логирование
-
-Приложение использует `loguru` для структурированного логирования:
-
-- Консольный вывод с цветным форматированием
-- Файловое логирование в `logs/app.log`
-- Ротация логов: 10 MB
-- Хранение: 7 дней
-- Сжатие: gzip
-
-## Зависимости
-
-### Runtime
-- `fastapi` — веб-фреймворк
-- `uvicorn` — ASGI сервер
-- `asyncpg` — асинхронный драйвер PostgreSQL
-- `sqlalchemy[asyncio]` — ORM
-- `pydantic-settings` — управление конфигурацией
-- `loguru` — логирование
-
-### Development
-- `ruff` — линтер и форматтер
-- `pytest` — тестирование
-- `pytest-asyncio` — асинхронные тесты
-- `httpx` — HTTP клиент для тестов
-- `pytest-cov` — измерение покрытия
-- `pre-commit` — хуки git
