@@ -14,7 +14,7 @@ data-pipeline  ─→  MLflow Tracking Server  ←── MLflow Model Registry
   handoff.json ─→  train.py (experiments) ─→  /process endpoint
 ```
 
-- **`app`** — FastAPI service, `POST /process`, inference via `models:/prompt-injection-detector@champion`.
+- **`app`** — FastAPI service, `POST /api/v1/process`, inference via `models:/prompt-injection-detector@champion`.
 - **`db`** — application PostgreSQL.
 - **`mlflow` / `mlflow-db`** — MLflow Tracking Server with its own PostgreSQL backend and file-based Artifact Store.
 - **`data-pipeline`** — one-shot job: validates raw data, splits, runs EDA, logs everything to MLflow, writes `handoff.json`.
@@ -35,7 +35,7 @@ docker compose logs -f data-pipeline          # wait until the pipeline run fini
 Run the pipeline again:
 
 ```bash
-docker compose run --rm data-pipeline
+docker compose up --no-deps data-pipeline
 docker compose cp data-pipeline:/work/outputs/. ./outputs/
 ```
 

@@ -7,6 +7,9 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev
+# Match the serializer and MLflow client used by the training image.
+COPY infra/requirements.lock /tmp/ml-requirements.lock
+RUN uv pip install --python /app/.venv/bin/python -r /tmp/ml-requirements.lock
 
 FROM python:3.11-slim AS runner
 WORKDIR /app

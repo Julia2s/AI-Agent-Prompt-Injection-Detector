@@ -34,6 +34,14 @@ def eda(splits: dict, stats: dict, directory: Path) -> None:
         directory / "length_statistics.csv"
     )
     write_json(directory / "quality.json", stats)
+    report = ["# Data exploration", "", "## Split and class counts", ""]
+    for name, frame in splits.items():
+        counts = frame.label.value_counts().sort_index().to_dict()
+        report.append(f"- {name}: {len(frame)} rows; classes: {counts}")
+    report.extend(
+        ["", "## Data quality", "", "```json", json.dumps(stats, indent=2), "```", ""]
+    )
+    (directory / "EDA.md").write_text("\n".join(report), encoding="utf-8")
     fig, ax = plt.subplots(figsize=(7, 4))
     pd.DataFrame(
         {name: frame.label.value_counts() for name, frame in splits.items()}

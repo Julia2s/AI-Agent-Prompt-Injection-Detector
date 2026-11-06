@@ -22,6 +22,18 @@ def load_and_log_inputs(contract_path: str | Path) -> dict[str, pd.DataFrame]:
         if sha256(path) != info["sha256"]:
             raise ValueError(f"Artifact checksum mismatch: {split}")
         frame = pd.read_csv(path, keep_default_na=False)
+        if len(frame) != info["rows"]:
+            raise ValueError(f"Row count mismatch: {split}")
+        if not {"text", "label"}.issubset(frame.columns):
+            raise ValueError(f"Missing required columns: {split}")
+        if (
+            not frame["text"]
+            .map(lambda text: isinstance(text, str) and bool(text.strip()))
+            .all()
+        ):
+            raise ValueError(f"Invalid text: {split}")
+        if not set(frame["label"]).issubset({0, 1}) or frame.empty:
+            raise ValueError(f"Invalid labels: {split}")
         dataset = mlflow.data.from_pandas(
             frame, source=info["source"], targets="label", name=info["name"]
         )

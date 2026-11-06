@@ -57,7 +57,7 @@ def test_real_mlflow_roundtrip(tmp_path):
     mlflow.set_tracking_uri(uri)
     client = MlflowClient(tracking_uri=uri)
     client.create_experiment(
-        "prompt-injection", artifact_location=str(tmp_path / "artifacts")
+        "prompt-injection", artifact_location=(tmp_path / "artifacts").as_uri()
     )
     output = tmp_path / "outputs"
     contract = run(uri, output)

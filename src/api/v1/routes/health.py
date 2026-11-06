@@ -1,7 +1,7 @@
 import importlib.metadata
 import time
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -54,3 +54,10 @@ async def health_check():
         database_latency_ms=db_latency_ms,
         dependencies=dependencies,
     )
+
+
+@router.get("/ready", summary="Model readiness")
+async def readiness(request: Request):
+    if getattr(request.app.state, "model_pipeline", None) is None:
+        raise HTTPException(status_code=503, detail="Model is not loaded")
+    return {"status": "ready"}
