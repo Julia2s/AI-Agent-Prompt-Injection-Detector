@@ -52,7 +52,6 @@ def test_real_mlflow_roundtrip(tmp_path):
     import mlflow
     from mlflow import MlflowClient
 
-
     uri = f"sqlite:///{tmp_path / 'tracking.db'}"
     mlflow.set_tracking_uri(uri)
     client = MlflowClient(tracking_uri=uri)

@@ -75,7 +75,8 @@ async def test_503_log_contains_context_without_task_content(api):
     api.publish.side_effect = TimeoutError("sensitive task content")
     try:
         response = await api.post(
-            "/api/v1/tasks", json={"task_id": "log-503", "text": "sensitive task content"}
+            "/api/v1/tasks",
+            json={"task_id": "log-503", "text": "sensitive task content"},
         )
     finally:
         tasks.logger.removeHandler(handler)

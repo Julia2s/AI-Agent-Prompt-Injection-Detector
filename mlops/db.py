@@ -22,7 +22,6 @@ PENDING = "PENDING"
 SUCCESS = "SUCCESS"
 
 
-
 POSTGRES_UPGRADES = (
     "ALTER TABLE task_results ALTER COLUMN is_injection DROP NOT NULL",
     "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ",
@@ -75,8 +74,6 @@ class ResultStore:
     async def initialize(self):
         async with self.engine.begin() as connection:
             if connection.dialect.name == "postgresql":
-
-
                 await connection.execute(text("SELECT pg_advisory_xact_lock(730219)"))
             await connection.run_sync(Base.metadata.create_all)
             if connection.dialect.name == "postgresql":

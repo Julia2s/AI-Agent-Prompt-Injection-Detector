@@ -56,7 +56,6 @@ def summarize(label: str, runs: dict) -> dict:
         row["max queue ready"] = int(monitor["ready"].max())
         row["max ready+unacked"] = int(monitor["depth"].max())
 
-
         row["publish attempts/s at broker (steady)"] = round(
             steady["publish_per_s"].mean(), 2
         )
@@ -74,7 +73,6 @@ def summarize(label: str, runs: dict) -> dict:
         row["rejected publish attempts"] = int(source["rejected_total"].max())
         row["LOST tasks"] = int(source["lost_total"].max())
     if latency is not None:
-
         row["tasks finished"] = len(latency)
         row["inference ms (mean)"] = round(latency["inference_ms"].mean(), 1)
         row["latency s p50"] = round(latency["latency_ms"].quantile(0.5) / 1000, 2)

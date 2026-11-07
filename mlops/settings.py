@@ -18,7 +18,6 @@ class PipelineSettings(BaseSettings):
     model_alias: str = "champion"
     queue_name: str = "inference_queue_v2"
 
-
     queue_capacity: int = Field(default=50, ge=0)
     worker_concurrency: int = Field(default=1, ge=1)
 
@@ -28,8 +27,6 @@ class PipelineSettings(BaseSettings):
     retry_delay: float = Field(default=0.5, gt=0)
     publish_timeout: float = Field(default=1.0, gt=0)
     source_backoff_max: float = Field(default=2.0, gt=0)
-
-
 
     graceful_timeout: float = Field(default=300.0, gt=0)
     worker_health_port: int = 8001
@@ -54,6 +51,5 @@ class PipelineSettings(BaseSettings):
 
     @property
     def retry_after(self):
-
 
         return max(1, math.ceil(self.inference_delay + self.retry_delay))

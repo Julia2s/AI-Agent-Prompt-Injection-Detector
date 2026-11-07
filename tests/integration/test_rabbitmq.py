@@ -138,14 +138,18 @@ async def test_real_worker_duplicate_and_dlq(settings):
         logging.getLogger(name)
         for name in ("mlops.worker", "faststream.broker", "aiormq", "aio_pika")
     ]
-    saved_levels = [(observed_logger, observed_logger.level) for observed_logger in observed_loggers]
+    saved_levels = [
+        (observed_logger, observed_logger.level) for observed_logger in observed_loggers
+    ]
     for observed_logger in observed_loggers:
         observed_logger.setLevel(logging.DEBUG)
         observed_logger.addHandler(handler)
     private_text = "private-payload-and-error-marker"
     model = Mock()
     model.predict.side_effect = lambda values: (
-        (_ for _ in ()).throw(ValueError(private_text)) if values[0] == private_text else [1]
+        (_ for _ in ()).throw(ValueError(private_text))
+        if values[0] == private_text
+        else [1]
     )
     worker = Worker(settings, model_loader=lambda _: model)
     FastStream(worker.broker)
@@ -174,13 +178,27 @@ async def test_real_worker_duplicate_and_dlq(settings):
                 await message.ack()
             assert await worker.store.get(bad["task_id"]) is None
             assert model.predict.call_count == 4
-            task_records = [entry for entry in records if entry.get("task_id") == bad["task_id"]]
+            task_records = [
+                entry for entry in records if entry.get("task_id") == bad["task_id"]
+            ]
             for attempt in (1, 2, 3):
-                assert any(entry["message"] == f"Inference failed on attempt {attempt}" and entry["level"] == "ERROR" and "ValueError" in entry.get("exception", "") for entry in task_records)
-            assert any(entry["message"] == "Task sent to DLQ after 3 attempts" and entry["level"] == "ERROR" for entry in task_records)
+                assert any(
+                    entry["message"] == f"Inference failed on attempt {attempt}"
+                    and entry["level"] == "ERROR"
+                    and "ValueError" in entry.get("exception", "")
+                    for entry in task_records
+                )
+            assert any(
+                entry["message"] == "Task sent to DLQ after 3 attempts"
+                and entry["level"] == "ERROR"
+                for entry in task_records
+            )
             assert any(entry["message"] == "Received" for entry in task_records)
             assert any(entry["message"] == "Processed" for entry in task_records)
-            assert any(entry["level"] == "DEBUG" and entry["logger"].startswith("aiormq.") for entry in records)
+            assert any(
+                entry["level"] == "DEBUG" and entry["logger"].startswith("aiormq.")
+                for entry in records
+            )
             assert private_text not in json.dumps(records)
     finally:
         await worker.broker.stop()

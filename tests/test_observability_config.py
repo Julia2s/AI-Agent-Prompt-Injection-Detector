@@ -17,12 +17,21 @@ def test_logging_services_are_optional_and_storage_is_bounded():
         assert services[name]["mem_limit"]
         assert ":latest" not in services[name]["image"]
     for name in ("app", "worker", "producer"):
-        assert not ({"loki", "alloy", "vector"} & set(compose["services"][name].get("depends_on", {})))
+        assert not (
+            {"loki", "alloy", "vector"}
+            & set(compose["services"][name].get("depends_on", {}))
+        )
     assert "load" in compose["services"]["producer"]["profiles"]
     assert services["loki"]["healthcheck"]
-    assert "/var/run/docker.sock:/var/run/docker.sock:ro" in services["alloy"]["volumes"]
-    assert "/var/run/docker.sock:/var/run/docker.sock:ro" in services["vector"]["volumes"]
-    loki = yaml.safe_load((ROOT / "observability/loki.yaml").read_text(encoding="utf-8"))
+    assert (
+        "/var/run/docker.sock:/var/run/docker.sock:ro" in services["alloy"]["volumes"]
+    )
+    assert (
+        "/var/run/docker.sock:/var/run/docker.sock:ro" in services["vector"]["volumes"]
+    )
+    loki = yaml.safe_load(
+        (ROOT / "observability/loki.yaml").read_text(encoding="utf-8")
+    )
     assert loki["limits_config"]["retention_period"] == "48h"
     assert loki["limits_config"]["discover_service_name"] == []
     assert loki["limits_config"]["discover_log_levels"] is False

@@ -123,8 +123,6 @@ async def _create_task(request: TaskRequest, response: Response, task_id: str):
         )
     except TRANSIENT_ERRORS as error:
         if created:
-
-
             with contextlib.suppress(SQLAlchemyError, OSError):
                 await store.discard_pending(task_id)
         raise overloaded(task_id, "Queue is full or unavailable") from error

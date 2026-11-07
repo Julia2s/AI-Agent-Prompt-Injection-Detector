@@ -39,7 +39,10 @@ class JsonFormatter(logging.Formatter):
         self.environment = environment
 
     def format(self, record: logging.LogRecord) -> str:
-        if record.name.startswith(("aiormq.", "aio_pika.")) and record.levelno == logging.DEBUG:
+        if (
+            record.name.startswith(("aiormq.", "aio_pika."))
+            and record.levelno == logging.DEBUG
+        ):
             message = "AMQP library debug event"
         elif (
             record.name.startswith("aiormq.")
@@ -93,7 +96,9 @@ class HealthAccessFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if record.levelno != logging.INFO:
             return True
-        return not any(path in record.getMessage() for path in ("/healthz", "/api/v1/health"))
+        return not any(
+            path in record.getMessage() for path in ("/healthz", "/api/v1/health")
+        )
 
 
 def setup_logging(service: str) -> None:

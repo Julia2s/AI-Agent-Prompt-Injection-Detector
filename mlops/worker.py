@@ -24,15 +24,12 @@ logger = logging.getLogger(__name__)
 
 
 class TaskMessage(BaseModel):
-
     task_id: str = Field(min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=100000)
     created_at: float | None = None
 
 
 async def raw_decoder(message):
-
-
 
     return message.body
 
@@ -44,9 +41,11 @@ def load_model(settings):
     logger.info(
         "Loading model name=%s alias=%s", settings.model_name, settings.model_alias
     )
-    version = mlflow.MlflowClient().get_model_version_by_alias(
-        settings.model_name, settings.model_alias
-    ).version
+    version = (
+        mlflow.MlflowClient()
+        .get_model_version_by_alias(settings.model_name, settings.model_alias)
+        .version
+    )
     model = mlflow.pyfunc.load_model(f"models:/{settings.model_name}/{version}")
     logger.info(
         "Model loaded name=%s alias=%s version=%s",
@@ -65,8 +64,6 @@ class Worker:
         self.model = None
         self.broker = make_broker(settings)
         self.pool = ThreadPoolExecutor(max_workers=settings.worker_concurrency)
-
-
 
         self.slots = asyncio.Semaphore(settings.worker_concurrency)
         self.ready = False
@@ -163,7 +160,6 @@ class Worker:
             task.task_id, task.text, prediction, inference_ms, latency_ms
         )
         logger.info("Task result saved")
-
 
         stored = await self.store.get(task.task_id)
         if stored.text != task.text:

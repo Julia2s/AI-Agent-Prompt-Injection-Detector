@@ -46,7 +46,8 @@ contract = json.loads(HANDOFF_PATH.read_text(encoding="utf-8"))
 if contract.get("experiment") and contract["experiment"] != EXPERIMENT_NAME:
     logger.warning(
         "Handoff experiment=%s differs from training experiment=%s",
-        contract["experiment"], EXPERIMENT_NAME,
+        contract["experiment"],
+        EXPERIMENT_NAME,
     )
 data_run_id = contract["data_run_id"]
 logger.info("Data run ID: %s", data_run_id)
@@ -138,7 +139,10 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
 
         logger.info(
             "Training run=%s run_id=%s f1=%.4f accuracy=%.4f",
-            run_name, run_id, metrics["f1_score"], metrics["accuracy"],
+            run_name,
+            run_id,
+            metrics["f1_score"],
+            metrics["accuracy"],
         )
         return {"run_id": run_id, "metrics": metrics, "name": run_name}
 

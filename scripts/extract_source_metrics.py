@@ -7,9 +7,10 @@ from mlops.metrics import SOURCE_COLUMNS
 
 
 def extract(source, destination):
-    with Path(source).open(encoding="utf-8") as input_file, Path(destination).open(
-        "w", encoding="utf-8", newline=""
-    ) as output_file:
+    with (
+        Path(source).open(encoding="utf-8") as input_file,
+        Path(destination).open("w", encoding="utf-8", newline="") as output_file,
+    ):
         writer = csv.writer(output_file)
         writer.writerow(SOURCE_COLUMNS)
         for line in input_file:

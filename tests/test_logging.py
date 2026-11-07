@@ -17,7 +17,12 @@ def test_json_formatter_includes_shared_fields_and_exception():
         import sys
 
         record = logging.LogRecord(
-            "library", logging.ERROR, __file__, 1, "failed %s", ("task",),
+            "library",
+            logging.ERROR,
+            __file__,
+            1,
+            "failed %s",
+            ("task",),
             sys.exc_info(),
         )
     entry = json.loads(JsonFormatter("worker", "test").format(record))
@@ -28,7 +33,9 @@ def test_json_formatter_includes_shared_fields_and_exception():
     assert entry["message"] == "failed task"
     assert "ValueError" in entry["exception"]
     assert "example failure" not in entry["exception"]
-    assert "test_json_formatter_includes_shared_fields_and_exception" in entry["exception"]
+    assert (
+        "test_json_formatter_includes_shared_fields_and_exception" in entry["exception"]
+    )
     assert entry["timestamp"].endswith("+00:00")
 
 
@@ -39,16 +46,26 @@ def test_faststream_exception_and_dsn_are_not_exposed():
         import sys
 
         record = logging.LogRecord(
-            "faststream.broker", logging.ERROR, "", 1,
-            "ValueError: secret task content", (), sys.exc_info(),
+            "faststream.broker",
+            logging.ERROR,
+            "",
+            1,
+            "ValueError: secret task content",
+            (),
+            sys.exc_info(),
         )
     formatter = JsonFormatter("worker", "test")
     output = formatter.format(record)
     assert "secret task content" not in output
     assert "Broker message processing failed" in output
     record = logging.LogRecord(
-        "library", logging.WARNING, "", 1,
-        "connection postgresql+asyncpg://user:password@db:5432/name", (), None,
+        "library",
+        logging.WARNING,
+        "",
+        1,
+        "connection postgresql+asyncpg://user:password@db:5432/name",
+        (),
+        None,
     )
     output = formatter.format(record)
     assert "user:password" not in output
@@ -58,15 +75,25 @@ def test_faststream_exception_and_dsn_are_not_exposed():
 def test_broker_message_body_and_connection_secrets_are_not_exposed():
     formatter = JsonFormatter("producer", "test")
     record = logging.LogRecord(
-        "aiormq.channel", logging.ERROR, "", 1,
-        "Unhandled message %r returning", (b"sensitive task text",), None,
+        "aiormq.channel",
+        logging.ERROR,
+        "",
+        1,
+        "Unhandled message %r returning",
+        (b"sensitive task text",),
+        None,
     )
     output = formatter.format(record)
     assert "sensitive task text" not in output
     assert "Broker returned a message" in output
     record = logging.LogRecord(
-        "library", logging.WARNING, "", 1,
-        "connection password='my secret' api_key=secret123 bearer token123", (), None,
+        "library",
+        logging.WARNING,
+        "",
+        1,
+        "connection password='my secret' api_key=secret123 bearer token123",
+        (),
+        None,
     )
     output = formatter.format(record)
     assert "my secret" not in output
@@ -81,17 +108,22 @@ def test_amqp_debug_frames_do_not_expose_payload():
         ("aio_pika.exchange", logging.DEBUG, "Publishing %r"),
         ("aiormq.connection", logging.ERROR, "Unexpected frame %r"),
     ):
-        record = logging.LogRecord(name, level, "", 1, template, (b"private payload",), None)
+        record = logging.LogRecord(
+            name, level, "", 1, template, (b"private payload",), None
+        )
         assert "private payload" not in formatter.format(record)
 
 
 def test_setup_uses_environment_and_routes_library_logs_to_stdout(monkeypatch, capsys):
     root = logging.getLogger()
-    frameworks = [logging.getLogger(name) for name in (
-        "uvicorn", "uvicorn.error", "uvicorn.access", "faststream"
-    )]
+    frameworks = [
+        logging.getLogger(name)
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "faststream")
+    ]
     saved_root = (root.handlers[:], root.level)
-    saved_frameworks = [(log, log.handlers[:], log.level, log.propagate) for log in frameworks]
+    saved_frameworks = [
+        (log, log.handlers[:], log.level, log.propagate) for log in frameworks
+    ]
     monkeypatch.setenv("LOG_LEVEL", "WARNING")
     monkeypatch.setenv("ENV", "test")
     try:
@@ -101,7 +133,9 @@ def test_setup_uses_environment_and_routes_library_logs_to_stdout(monkeypatch, c
         entry = json.loads(capsys.readouterr().out)
         assert entry["message"] == "visible"
         assert (entry["service"], entry["env"], entry["level"]) == (
-            "api", "test", "WARNING"
+            "api",
+            "test",
+            "WARNING",
         )
     finally:
         root.handlers[:], root.level = saved_root

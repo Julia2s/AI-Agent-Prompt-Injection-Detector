@@ -9,10 +9,14 @@ from mlops import pipeline
 def test_pipeline_cli_logs_completion_without_handoff(monkeypatch, capsys, tmp_path):
     root = logging.getLogger()
     saved_root = root.handlers[:], root.level
-    framework_loggers = [logging.getLogger(name) for name in (
-        "uvicorn", "uvicorn.error", "uvicorn.access", "faststream"
-    )]
-    saved_frameworks = [(item, item.handlers[:], item.level, item.propagate) for item in framework_loggers]
+    framework_loggers = [
+        logging.getLogger(name)
+        for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "faststream")
+    ]
+    saved_frameworks = [
+        (item, item.handlers[:], item.level, item.propagate)
+        for item in framework_loggers
+    ]
     monkeypatch.setattr(sys, "argv", ["pipeline", "--output", str(tmp_path)])
     run = Mock(return_value={"tracking_uri": "private-value"})
     monkeypatch.setattr(pipeline, "run", run)

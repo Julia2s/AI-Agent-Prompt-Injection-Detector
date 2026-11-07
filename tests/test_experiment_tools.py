@@ -39,7 +39,9 @@ def test_source_metrics_respect_log_level():
 
 def test_extract_source_metrics_from_json_and_legacy_logs(tmp_path):
     sample = RateSampler(SourceStats(), clock=lambda: 0.0).sample()
-    record = logging.LogRecord("mlops.producer.metrics", logging.INFO, "", 1, "Source metrics", (), None)
+    record = logging.LogRecord(
+        "mlops.producer.metrics", logging.INFO, "", 1, "Source metrics", (), None
+    )
     record.source_metrics = sample
     entry = JsonFormatter("producer", "dev").format(record)
     assert json.loads(entry)["source_metrics"] == sample

@@ -45,7 +45,9 @@ async def test_handler_commits_once_on_duplicate(worker):
 @pytest.mark.asyncio
 async def test_handler_receives_correlation_context_and_resets(worker):
     seen = []
-    worker.process_one = AsyncMock(side_effect=lambda body: seen.append(task_id_context.get()))
+    worker.process_one = AsyncMock(
+        side_effect=lambda body: seen.append(task_id_context.get())
+    )
     async with RabbitTestBroker(worker.broker):
         await worker.broker.publish(
             {"task_id": "t1", "text": "hi"},
@@ -59,7 +61,9 @@ async def test_handler_receives_correlation_context_and_resets(worker):
 @pytest.mark.asyncio
 async def test_inference_thread_receives_task_context(worker):
     seen = []
-    worker.model.predict.side_effect = lambda texts: (seen.append(task_id_context.get()) or [1])
+    worker.model.predict.side_effect = lambda texts: (
+        seen.append(task_id_context.get()) or [1]
+    )
     async with RabbitTestBroker(worker.broker):
         await worker.broker.publish(
             {"task_id": "thread-task", "text": "hi"},
