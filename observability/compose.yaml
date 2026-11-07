@@ -1,0 +1,56 @@
+services:
+  loki:
+    image: grafana/loki:${LOKI_VERSION:-3.3.2}
+    profiles: [logs, observability]
+    command: ["-config.file=/etc/loki/config.yaml"]
+    ports:
+    - 127.0.0.1:3100:3100
+    volumes:
+    - ./loki.yaml:/etc/loki/config.yaml:ro
+    - loki_data:/loki
+    healthcheck:
+      test: ["CMD", "/busybox/wget", "-q", "-O", "/dev/null", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    mem_limit: 512m
+    networks: [observability]
+  alloy:
+    image: grafana/alloy:${ALLOY_VERSION:-v1.6.1}
+    profiles: [logs, observability]
+    command: ["run", "--storage.path=/var/lib/alloy", "/etc/alloy/config.alloy"]
+    environment:
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      ENV: ${ENV:-dev}
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./alloy.alloy:/etc/alloy/config.alloy:ro
+    - alloy_data:/var/lib/alloy
+    depends_on:
+      loki:
+        condition: service_healthy
+    mem_limit: 256m
+    networks: [observability]
+  vector:
+    image: timberio/vector:${VECTOR_VERSION:-0.43.1-alpine}
+    profiles: [logs, observability]
+    command: ["--config", "/etc/vector/vector.yaml"]
+    environment:
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      ENV: ${ENV:-dev}
+    volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - ./vector.yaml:/etc/vector/vector.yaml:ro
+    - vector_data:/var/lib/vector
+    depends_on:
+      loki:
+        condition: service_healthy
+    mem_limit: 256m
+    networks: [observability]
+volumes:
+  loki_data: null
+  alloy_data: null
+  vector_data: null
+networks:
+  observability: null

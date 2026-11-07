@@ -1,12 +1,17 @@
 import asyncio
+import csv
+import json
+import logging
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from mlops.metrics import RateSampler, SourceStats, csv_line
-from mlops.producer import rows, run_backpressure, run_naive
+from mlops.producer import metrics_logger, rows, run_backpressure, run_naive
 from mlops.settings import PipelineSettings
+from scripts.extract_source_metrics import extract
 from scripts.monitor import parse_mem, queue_row
+from src.core.logging import JsonFormatter
 
 
 def test_rate_sampler_computes_per_second_rates():
@@ -18,6 +23,37 @@ def test_rate_sampler_computes_per_second_rates():
     stats.accepted, now[0] = 12, 3.0
     assert sampler.sample()["accepted_per_s"] == 2
     assert csv_line(row).startswith("2.0,10,4,0,5.0,2.0,0,")
+
+
+def test_source_metrics_respect_log_level():
+    root = logging.getLogger()
+    previous = root.level
+    try:
+        root.setLevel(logging.WARNING)
+        assert not metrics_logger.isEnabledFor(logging.INFO)
+        root.setLevel(logging.INFO)
+        assert metrics_logger.isEnabledFor(logging.INFO)
+    finally:
+        root.setLevel(previous)
+
+
+def test_extract_source_metrics_from_json_and_legacy_logs(tmp_path):
+    sample = RateSampler(SourceStats(), clock=lambda: 0.0).sample()
+    record = logging.LogRecord("mlops.producer.metrics", logging.INFO, "", 1, "Source metrics", (), None)
+    record.source_metrics = sample
+    entry = JsonFormatter("producer", "dev").format(record)
+    assert json.loads(entry)["source_metrics"] == sample
+    source, output = tmp_path / "producer.log", tmp_path / "source.csv"
+    source.write_text(
+        "unrelated output\n" + entry + "\nSOURCE_METRIC," + csv_line(sample) + "\n",
+        encoding="utf-8",
+    )
+    extract(source, output)
+    with output.open(encoding="utf-8", newline="") as stream:
+        rows = list(csv.DictReader(stream))
+    assert len(rows) == 2
+    assert rows[0] == rows[1]
+    assert rows[0]["accepted_total"] == "0"
 
 
 def test_rows_are_stable_and_padding_is_optional(tmp_path):
@@ -55,7 +91,7 @@ async def test_naive_source_buffers_everything_and_loses_rejected():
         run_naive(broker, PipelineSettings(), tasks, stats, deadline=None)
     )
     await asyncio.sleep(0.05)
-    assert stats.buffered == 50  # unbounded in-memory buffer
+    assert stats.buffered == 50
     gate.set()
     await runner
     assert stats.lost == 50 and stats.accepted == 0

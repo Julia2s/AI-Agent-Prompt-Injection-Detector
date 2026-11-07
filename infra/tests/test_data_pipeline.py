@@ -52,12 +52,12 @@ def test_real_mlflow_roundtrip(tmp_path):
     import mlflow
     from mlflow import MlflowClient
 
-    # Isolated SQL backend; production compose uses PostgreSQL.
+
     uri = f"sqlite:///{tmp_path / 'tracking.db'}"
     mlflow.set_tracking_uri(uri)
     client = MlflowClient(tracking_uri=uri)
     client.create_experiment(
-        "prompt-injection", artifact_location=str(tmp_path / "artifacts")
+        "prompt-injection", artifact_location=(tmp_path / "artifacts").as_uri()
     )
     output = tmp_path / "outputs"
     contract = run(uri, output)
@@ -65,9 +65,10 @@ def test_real_mlflow_roundtrip(tmp_path):
     assert saved.info.status == "FINISHED"
     assert len(saved.inputs.dataset_inputs) == 4
     assert {p.path for p in client.list_artifacts(saved.info.run_id, "eda")} >= {
-        "eda/EDA.md",
         "eda/class_balance.png",
         "eda/text_lengths.png",
+        "eda/length_statistics.csv",
+        "eda/quality.json",
     }
     with mlflow.start_run(run_name="handoff-verification") as active:
         frames = load_and_log_inputs(output / "handoff.json")

@@ -21,8 +21,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 PENDING = "PENDING"
 SUCCESS = "SUCCESS"
 
-# Idempotent upgrades for databases created by the previous schema version
-# (create_all never alters existing tables).
+
+
 POSTGRES_UPGRADES = (
     "ALTER TABLE task_results ALTER COLUMN is_injection DROP NOT NULL",
     "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ",
@@ -42,10 +42,10 @@ class Base(DeclarativeBase):
 class TaskResult(Base):
     __tablename__ = "task_results"
     id: Mapped[int] = mapped_column(primary_key=True)
-    # UNIQUE(task_id) is what makes processing idempotent.
+
     task_id: Mapped[str] = mapped_column(String, unique=True, index=True)
     text: Mapped[str] = mapped_column(Text)
-    # NULL while the task is PENDING.
+
     is_injection: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     status: Mapped[str] = mapped_column(String, default=SUCCESS)
     created_at: Mapped[datetime] = mapped_column(
@@ -54,9 +54,9 @@ class TaskResult(Base):
     finished_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    # Time spent inside the model call (what INFERENCE_DELAY controls).
+
     inference_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
-    # created_at of the message -> result written: queueing + inference.
+
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
 
 
@@ -75,8 +75,8 @@ class ResultStore:
     async def initialize(self):
         async with self.engine.begin() as connection:
             if connection.dialect.name == "postgresql":
-                # Serialize first-time schema creation when several processes
-                # (API + workers) start together.
+
+
                 await connection.execute(text("SELECT pg_advisory_xact_lock(730219)"))
             await connection.run_sync(Base.metadata.create_all)
             if connection.dialect.name == "postgresql":

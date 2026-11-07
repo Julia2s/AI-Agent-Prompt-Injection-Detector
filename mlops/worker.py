@@ -7,29 +7,33 @@ import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from contextvars import copy_context
 from functools import partial
 
 from faststream import AckPolicy, FastStream
+from faststream.rabbit import RabbitMessage
 from pydantic import BaseModel, Field, ValidationError
 
 from mlops.db import SUCCESS, ResultStore
 from mlops.messaging import dead_queue, declare_topology, make_broker, task_queue
 from mlops.settings import PipelineSettings
+from src.core.logging import setup_logging, task_context
 
+setup_logging("worker")
 logger = logging.getLogger(__name__)
 
 
 class TaskMessage(BaseModel):
-    # Unknown fields (e.g. the experiment's `padding`) are ignored by pydantic.
+
     task_id: str = Field(min_length=1, max_length=128)
     text: str = Field(min_length=1, max_length=100000)
     created_at: float | None = None
 
 
 async def raw_decoder(message):
-    # Bypass FastStream's JSON decoder so malformed payloads reach the handler
-    # as raw bytes and go to the DLQ via ValidationError, instead of crashing
-    # the consumer on decode.
+
+
+
     return message.body
 
 
@@ -37,7 +41,20 @@ def load_model(settings):
     import mlflow
 
     mlflow.set_tracking_uri(settings.mlflow_tracking_uri)
-    return mlflow.pyfunc.load_model(settings.model_uri)
+    logger.info(
+        "Loading model name=%s alias=%s", settings.model_name, settings.model_alias
+    )
+    version = mlflow.MlflowClient().get_model_version_by_alias(
+        settings.model_name, settings.model_alias
+    ).version
+    model = mlflow.pyfunc.load_model(f"models:/{settings.model_name}/{version}")
+    logger.info(
+        "Model loaded name=%s alias=%s version=%s",
+        settings.model_name,
+        settings.model_alias,
+        version,
+    )
+    return model
 
 
 class Worker:
@@ -48,16 +65,20 @@ class Worker:
         self.model = None
         self.broker = make_broker(settings)
         self.pool = ThreadPoolExecutor(max_workers=settings.worker_concurrency)
-        # Safety net for the unbounded baseline (prefetch=0): limits the number
-        # of concurrent in-flight asyncio tasks inside this process. In bounded
-        # mode it is redundant with prefetch_count but harmless.
+
+
+
         self.slots = asyncio.Semaphore(settings.worker_concurrency)
         self.ready = False
         self.handler = self.broker.subscriber(
             task_queue(settings),
             ack_policy=AckPolicy.NACK_ON_ERROR,
             decoder=raw_decoder,
-        )(self.process)
+        )(self.process_message)
+
+    async def process_message(self, body: bytes, message: RabbitMessage):
+        with task_context(message.correlation_id):
+            await self.process(body)
 
     async def start(self):
         await self.store.initialize()
@@ -87,13 +108,15 @@ class Worker:
             timeout=self.settings.publish_timeout,
             message_id=key,
         )
+        logger.error("Task sent to DLQ after %s attempts", attempts)
 
     async def process(self, body: bytes):
         async with self.slots:
             try:
                 await self.process_one(body)
             except Exception:
-                # DB/DLQ outage: keep the original message, never ACK on failure.
+                logger.exception("Task processing failed; delivery will be retried")
+
                 await asyncio.sleep(self.settings.retry_delay)
                 raise
 
@@ -103,15 +126,15 @@ class Worker:
             task = TaskMessage.model_validate_json(body)
         except ValidationError as error:
             await self.to_dlq(body, key, 0, error)
-            return  # Invalid schema is not transient; retry cannot repair it
+            return
         existing = await self.store.get(task.task_id)
         if existing is not None:
             if existing.text != task.text:
                 await self.to_dlq(body, key, 0, "task_id reused with different text")
                 return
             if existing.status == SUCCESS:
-                return  # redelivery of an already finished task: nothing to do
-            # PENDING row created by the API: fall through and process it.
+                return
+
         attempts = await self.store.failures(key)
         error = "Retry budget was exhausted before redelivery"
         if attempts >= self.settings.max_attempts:
@@ -120,14 +143,15 @@ class Worker:
         started = time.perf_counter()
         try:
             prediction = await asyncio.get_running_loop().run_in_executor(
-                self.pool, partial(self.predict, task.text)
+                self.pool, copy_context().run, partial(self.predict, task.text)
             )
         except Exception as failure:
             attempts = await self.store.record_failure(key)
+            logger.exception("Inference failed on attempt %s", attempts)
             if attempts >= self.settings.max_attempts:
                 await self.to_dlq(body, key, attempts, failure)
                 return
-            # NACK_ON_ERROR requeues the original delivery after process delay.
+
             raise
         inference_ms = (time.perf_counter() - started) * 1000
         latency_ms = (
@@ -138,8 +162,9 @@ class Worker:
         await self.store.save(
             task.task_id, task.text, prediction, inference_ms, latency_ms
         )
-        # Defensive check against a manual publication into the queue with a
-        # task_id that already exists with different text (cannot happen via API).
+        logger.info("Task result saved")
+
+
         stored = await self.store.get(task.task_id)
         if stored.text != task.text:
             await self.to_dlq(body, key, attempts, "task_id reused with different text")
@@ -166,13 +191,15 @@ class Worker:
             )
             yield
         finally:
+            logger.info("Worker shutdown cleanup started")
             self.ready = False
             if server:
                 server.close()
                 await server.wait_closed()
-            # FastStream drains accepted deliveries before exiting this lifespan.
+
             self.pool.shutdown(wait=True)
             await self.store.close()
+            logger.info("Worker shutdown cleanup completed")
 
 
 worker = Worker(PipelineSettings())

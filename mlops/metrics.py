@@ -21,9 +21,9 @@ class SourceStats:
     holds in ITS OWN memory waiting to be published: it must stay <= 1 under
     backpressure."""
 
-    accepted: int = 0  # confirmed by the broker
-    rejected: int = 0  # NACK/timeout -> retried later
-    lost: int = 0  # only possible in the deliberately naive mode
+    accepted: int = 0
+    rejected: int = 0
+    lost: int = 0
     buffered: int = 0
 
 

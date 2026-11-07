@@ -1,5 +1,7 @@
 """HTTP boundary: 202 / 200 / 409 / 503 contract and no PENDING ghosts."""
 
+import json
+import logging
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 
 from mlops.db import ResultStore
 from src.api.v1.routes import tasks
+from src.core.logging import JsonFormatter
 
 
 @pytest.fixture
@@ -43,7 +46,7 @@ async def test_status_endpoint_follows_lifecycle(api):
     assert (await api.get("/api/v1/tasks/nope")).status_code == 404
     await api.post("/api/v1/tasks", json={"text": "hi", "task_id": "t2"})
     assert (await api.get("/api/v1/tasks/t2")).json()["status"] == "PENDING"
-    await api.store.save("t2", "hi", True, 12.5, 40.0)  # what the worker does
+    await api.store.save("t2", "hi", True, 12.5, 40.0)
     done = (await api.get("/api/v1/tasks/t2")).json()
     assert done["status"] == "SUCCESS" and done["label"] == "injection"
     assert done["inference_ms"] == 12.5
@@ -55,9 +58,32 @@ async def test_overload_is_immediate_503_with_retry_after_and_no_pending(api):
     assert response.status_code == 503
     assert int(response.headers["Retry-After"]) == tasks.pipeline_settings.retry_after
     assert response.json()["detail"]["task_id"] == "x"
-    assert api.publish.await_count == 1  # one attempt, no waiting loop
-    assert await api.store.get("x") is None  # rolled back: no PENDING ghost
+    assert api.publish.await_count == 1
+    assert await api.store.get("x") is None
     assert (await api.get("/api/v1/tasks/x")).status_code == 404
+
+
+async def test_503_log_contains_context_without_task_content(api):
+    entries = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            entries.append(json.loads(JsonFormatter("api", "test").format(record)))
+
+    handler = Capture()
+    tasks.logger.addHandler(handler)
+    api.publish.side_effect = TimeoutError("sensitive task content")
+    try:
+        response = await api.post(
+            "/api/v1/tasks", json={"task_id": "log-503", "text": "sensitive task content"}
+        )
+    finally:
+        tasks.logger.removeHandler(handler)
+    assert response.status_code == 503
+    assert len(entries) == 1
+    assert entries[0]["task_id"] == "log-503"
+    assert entries[0]["level"] == "WARNING"
+    assert "sensitive task content" not in json.dumps(entries)
 
 
 async def test_retry_after_503_with_same_task_id_succeeds(api):
@@ -86,5 +112,5 @@ async def test_failed_republish_keeps_older_pending_row(api):
     api.publish.side_effect = TimeoutError()
     response = await api.post("/api/v1/tasks", json={"task_id": "k", "text": "hi"})
     assert response.status_code == 503
-    # The first message is already in the queue: its PENDING row must survive.
+
     assert (await api.store.get("k")).status == "PENDING"

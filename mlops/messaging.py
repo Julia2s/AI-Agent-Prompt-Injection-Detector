@@ -1,10 +1,26 @@
 """One topology and publisher-confirm policy for every process."""
 
+import logging
 import time
 
 from faststream.rabbit import Channel, RabbitBroker, RabbitQueue
 
 from mlops.settings import PipelineSettings
+
+
+class BrokerLogger(logging.LoggerAdapter):
+    def __init__(self):
+        super().__init__(logging.getLogger("faststream.broker"), {})
+        self.broker = None
+
+    def process(self, msg, kwargs):
+        extra = dict(kwargs.get("extra") or {})
+        if self.broker is not None:
+            message = self.broker.context.get_local("message")
+            if correlation_id := getattr(message, "correlation_id", None):
+                extra["task_id"] = correlation_id
+        kwargs["extra"] = extra
+        return msg, kwargs
 
 
 def task_queue(settings: PipelineSettings):
@@ -22,8 +38,10 @@ def dead_queue(settings: PipelineSettings):
 
 
 def make_broker(settings: PipelineSettings):
-    return RabbitBroker(
+    logger = BrokerLogger()
+    broker = RabbitBroker(
         settings.rabbitmq_url,
+        logger=logger,
         default_channel=Channel(
             publisher_confirms=True,
             on_return_raises=True,
@@ -31,6 +49,8 @@ def make_broker(settings: PipelineSettings):
         ),
         graceful_timeout=settings.graceful_timeout,
     )
+    logger.broker = broker
+    return broker
 
 
 async def declare_topology(broker, settings):
@@ -51,4 +71,5 @@ async def publish_task(broker, settings, task):
         mandatory=True,
         timeout=settings.publish_timeout,
         message_id=task["task_id"],
+        correlation_id=task["task_id"],
     )

@@ -12,6 +12,7 @@ POST /api/v1/tasks lifecycle:
 """
 
 import contextlib
+import logging
 import uuid
 from datetime import datetime
 
@@ -23,9 +24,11 @@ from mlops.db import SUCCESS, ResultStore
 from mlops.messaging import new_task, publish_task
 from mlops.producer import TRANSIENT_ERRORS
 from src.core.broker import broker, pipeline_settings
+from src.core.logging import task_context
 
 router = APIRouter(prefix="/api/v1", tags=["tasks"])
 store = ResultStore(pipeline_settings.database_url)
+logger = logging.getLogger(__name__)
 
 
 class TaskRequest(BaseModel):
@@ -68,6 +71,8 @@ def to_view(row) -> TaskView:
 
 
 def overloaded(task_id: str, reason: str):
+    with task_context(task_id):
+        logger.warning("Returning HTTP 503: %s", reason)
     retry_after = pipeline_settings.retry_after
     return HTTPException(
         status_code=503,
@@ -93,6 +98,11 @@ def overloaded(task_id: str, reason: str):
 )
 async def create_task(request: TaskRequest, response: Response):
     task_id = request.task_id or str(uuid.uuid4())
+    with task_context(task_id):
+        return await _create_task(request, response, task_id)
+
+
+async def _create_task(request: TaskRequest, response: Response, task_id: str):
     try:
         row, created = await store.create_pending(task_id, request.text)
     except (SQLAlchemyError, OSError) as error:
@@ -113,12 +123,13 @@ async def create_task(request: TaskRequest, response: Response):
         )
     except TRANSIENT_ERRORS as error:
         if created:
-            # If even the compensation fails, a stale PENDING remains; the
-            # client's retry with the same task_id re-publishes it safely.
+
+
             with contextlib.suppress(SQLAlchemyError, OSError):
                 await store.discard_pending(task_id)
         raise overloaded(task_id, "Queue is full or unavailable") from error
     response.headers["Location"] = f"/api/v1/tasks/{task_id}"
+    logger.info("Task accepted")
     return to_view(row)
 
 

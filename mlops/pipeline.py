@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -13,6 +14,8 @@ import mlflow
 import pandas as pd
 
 from mlops.data import ROOT, load_raw, prepare, sha256
+from mlops.run_logging import quiet_run
+from src.core.logging import setup_logging
 
 EXPERIMENT = "prompt-injection"
 DATASET = "deepset-prompt-injections"
@@ -70,7 +73,7 @@ def run(tracking_uri: str, output: Path, raw_dir: Path = ROOT / "data/raw") -> d
     write_json(output / "source.json", source)
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_experiment(EXPERIMENT)
-    with mlflow.start_run(run_name="infrastructure-data-eda") as active:
+    with quiet_run(mlflow.start_run(run_name="infrastructure-data-eda")) as active:
         mlflow.set_tags(
             {"stage": "data-preparation", "dataset.revision": source["revision"]}
         )
@@ -131,6 +134,7 @@ def run(tracking_uri: str, output: Path, raw_dir: Path = ROOT / "data/raw") -> d
 
 
 def main() -> None:
+    setup_logging("data-pipeline")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--tracking-uri",
@@ -138,7 +142,8 @@ def main() -> None:
     )
     parser.add_argument("--output", type=Path, default=ROOT / "outputs")
     args = parser.parse_args()
-    print(json.dumps(run(args.tracking_uri, args.output), indent=2))
+    run(args.tracking_uri, args.output)
+    logging.getLogger(__name__).info("Data pipeline completed")
 
 
 if __name__ == "__main__":

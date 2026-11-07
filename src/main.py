@@ -1,7 +1,7 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from loguru import logger
 
 from mlops.messaging import declare_topology
 from src.api.v1.routes import (
@@ -14,10 +14,12 @@ from src.api.v1.routes.tasks import store
 from src.core.broker import broker, pipeline_settings
 from src.core.logging import setup_logging
 
+setup_logging("api")
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    setup_logging(level="DEBUG" if pipeline_settings.debug else "INFO")
     logger.info(
         f"Starting {pipeline_settings.app_name} v{pipeline_settings.app_version}"
     )
@@ -34,6 +36,7 @@ async def lifespan(app: FastAPI):
     logger.info("Остановка API. Отключение от RabbitMQ...")
     await broker.close()
     await store.close()
+    logger.info("API shutdown completed")
 
 
 app = FastAPI(

@@ -1,6 +1,9 @@
 import asyncio
 import json
+import logging
+import sys
 import time
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -9,7 +12,8 @@ from faststream.rabbit import TestRabbitBroker as RabbitTestBroker
 from mlops.messaging import dead_queue, make_broker, task_queue
 from mlops.producer import send_with_backpressure
 from mlops.settings import PipelineSettings
-from mlops.worker import Worker
+from mlops.worker import Worker, load_model
+from src.core.logging import JsonFormatter, task_id_context
 
 
 @pytest.fixture
@@ -36,6 +40,34 @@ async def test_handler_commits_once_on_duplicate(worker):
         await worker.broker.publish(task, queue=task_queue(worker.settings))
     assert (await worker.store.get("same")).is_injection is True
     assert worker.model.predict.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_handler_receives_correlation_context_and_resets(worker):
+    seen = []
+    worker.process_one = AsyncMock(side_effect=lambda body: seen.append(task_id_context.get()))
+    async with RabbitTestBroker(worker.broker):
+        await worker.broker.publish(
+            {"task_id": "t1", "text": "hi"},
+            queue=task_queue(worker.settings),
+            correlation_id="t1",
+        )
+    assert seen == ["t1"]
+    assert task_id_context.get() is None
+
+
+@pytest.mark.asyncio
+async def test_inference_thread_receives_task_context(worker):
+    seen = []
+    worker.model.predict.side_effect = lambda texts: (seen.append(task_id_context.get()) or [1])
+    async with RabbitTestBroker(worker.broker):
+        await worker.broker.publish(
+            {"task_id": "thread-task", "text": "hi"},
+            queue=task_queue(worker.settings),
+            correlation_id="thread-task",
+        )
+    assert seen == ["thread-task"]
+    assert task_id_context.get() is None
 
 
 @pytest.mark.asyncio
@@ -89,6 +121,36 @@ async def test_malformed_json_goes_to_dlq(worker):
 
 
 @pytest.mark.asyncio
+async def test_dlq_log_has_context_without_body(worker):
+    entries = []
+
+    @worker.broker.subscriber(dead_queue(worker.settings))
+    async def receive_dlq(message: dict):
+        return None
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            entries.append(json.loads(JsonFormatter("worker", "test").format(record)))
+
+    log = logging.getLogger("mlops.worker")
+    handler = Capture()
+    log.addHandler(handler)
+    try:
+        async with RabbitTestBroker(worker.broker):
+            await worker.broker.publish(
+                b"private malformed payload",
+                queue=task_queue(worker.settings),
+                correlation_id="poison-id",
+            )
+    finally:
+        log.removeHandler(handler)
+    event = next(entry for entry in entries if "sent to DLQ" in entry["message"])
+    assert event["level"] == "ERROR"
+    assert event["task_id"] == "poison-id"
+    assert "private malformed payload" not in json.dumps(entries)
+
+
+@pytest.mark.asyncio
 async def test_temporary_inference_failure_recovers(worker):
     worker.model.predict.side_effect = [ValueError("temporary"), [0]]
     async with RabbitTestBroker(worker.broker):
@@ -101,6 +163,21 @@ async def test_temporary_inference_failure_recovers(worker):
         )
     assert (await worker.store.get("recover")).is_injection is False
     assert worker.model.predict.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_failure_log_has_attempt_without_payload(worker, monkeypatch):
+    failure_log = Mock()
+    monkeypatch.setattr("mlops.worker.logger.exception", failure_log)
+    worker.model.predict.side_effect = ValueError("sensitive text")
+    async with RabbitTestBroker(worker.broker):
+        with pytest.raises(ValueError):
+            await worker.broker.publish(
+                {"task_id": "id", "text": "sensitive text"},
+                queue=task_queue(worker.settings),
+                correlation_id="id",
+            )
+    failure_log.assert_any_call("Inference failed on attempt %s", 1)
 
 
 @pytest.mark.asyncio
@@ -167,6 +244,29 @@ async def test_model_loads_once_at_start(worker):
     assert worker.settings.model_uri == "models:/prompt-injection-detector@champion"
 
 
+def test_model_alias_resolves_to_version_before_loading(monkeypatch):
+    settings = PipelineSettings(model_name="detector", model_alias="champion")
+    client = Mock()
+    client.get_model_version_by_alias.return_value.version = "42"
+    model = object()
+    load = Mock(return_value=model)
+    info = Mock()
+    mlflow = SimpleNamespace(
+        set_tracking_uri=Mock(),
+        MlflowClient=Mock(return_value=client),
+        pyfunc=SimpleNamespace(load_model=load),
+    )
+    monkeypatch.setitem(sys.modules, "mlflow", mlflow)
+    monkeypatch.setattr("mlops.worker.logger.info", info)
+
+    assert load_model(settings) is model
+    client.get_model_version_by_alias.assert_called_once_with("detector", "champion")
+    load.assert_called_once_with("models:/detector/42")
+    info.assert_any_call(
+        "Model loaded name=%s alias=%s version=%s", "detector", "champion", "42"
+    )
+
+
 def test_prefetch_matches_pool():
     with pytest.raises(ValueError, match="PREFETCH_COUNT"):
         PipelineSettings(prefetch_count=2, worker_concurrency=1)
@@ -186,6 +286,27 @@ def test_graceful_timeout_is_a_real_number():
     assert broker.config.graceful_timeout == 42
     with pytest.raises(ValueError):
         PipelineSettings(graceful_timeout=0)
+
+
+@pytest.mark.asyncio
+async def test_shutdown_logs_wrap_broker_stop(monkeypatch):
+    from faststream import FastStream
+
+    events = []
+    broker = make_broker(PipelineSettings())
+    app = FastStream(broker)
+    monkeypatch.setattr(app, "_log", lambda level, message: events.append(message))
+
+    async def stop():
+        events.append("broker stopped")
+
+    monkeypatch.setattr(broker, "stop", stop)
+    await app._shutdown()
+    assert events == [
+        "FastStream app shutting down...",
+        "broker stopped",
+        "FastStream app shut down gracefully.",
+    ]
 
 
 @pytest.mark.asyncio

@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import signal
 import subprocess
@@ -13,6 +14,7 @@ from unittest.mock import Mock
 import aio_pika
 import pytest
 from fastapi import FastAPI
+from faststream import FastStream
 from httpx import ASGITransport, AsyncClient
 from testcontainers.community.postgres import PostgresContainer
 from testcontainers.community.rabbitmq import RabbitMqContainer
@@ -23,13 +25,14 @@ from mlops.producer import TRANSIENT_ERRORS, send_with_backpressure
 from mlops.settings import PipelineSettings
 from mlops.worker import Worker
 from src.api.v1.routes import tasks
+from src.core.logging import JsonFormatter
 
 pytestmark = pytest.mark.integration
 
 
 @pytest.fixture(scope="module")
 def services():
-    # Intentionally fail if Docker is unavailable: never report this as a passing test.
+
     with (
         RabbitMqContainer("rabbitmq:3.13-management") as rabbit,
         PostgresContainer("postgres:15-alpine") as postgres,
@@ -90,7 +93,7 @@ async def test_real_overflow_backpressure_and_api(settings, monkeypatch):
         assert response.status_code == 503
         assert "Retry-After" in response.headers
         assert time.monotonic() - started < settings.publish_timeout + 0.5
-        assert await store.get("api-full") is None  # no PENDING ghost left behind
+        assert await store.get("api-full") is None
         assert response.json()["detail"]["task_id"] == "api-full"
         pending = asyncio.create_task(
             send_with_backpressure(
@@ -124,11 +127,28 @@ async def test_real_overflow_backpressure_and_api(settings, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_real_worker_duplicate_and_dlq(settings):
+    records = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            records.append(json.loads(JsonFormatter("worker", "test").format(record)))
+
+    handler = Capture()
+    observed_loggers = [
+        logging.getLogger(name)
+        for name in ("mlops.worker", "faststream.broker", "aiormq", "aio_pika")
+    ]
+    saved_levels = [(observed_logger, observed_logger.level) for observed_logger in observed_loggers]
+    for observed_logger in observed_loggers:
+        observed_logger.setLevel(logging.DEBUG)
+        observed_logger.addHandler(handler)
+    private_text = "private-payload-and-error-marker"
     model = Mock()
     model.predict.side_effect = lambda values: (
-        (_ for _ in ()).throw(ValueError("poison")) if values[0] == "poison" else [1]
+        (_ for _ in ()).throw(ValueError(private_text)) if values[0] == private_text else [1]
     )
     worker = Worker(settings, model_loader=lambda _: model)
+    FastStream(worker.broker)
     await worker.start()
     await worker.broker.start()
     try:
@@ -137,7 +157,7 @@ async def test_real_worker_duplicate_and_dlq(settings):
             await send_with_backpressure(publisher, settings, task)
             await send_with_backpressure(publisher, settings, task)
             await wait_for(lambda: worker.store.get(task["task_id"]))
-            bad = {"task_id": uuid.uuid4().hex, "text": "poison"}
+            bad = {"task_id": uuid.uuid4().hex, "text": private_text}
             await send_with_backpressure(publisher, settings, bad)
             connection = await aio_pika.connect_robust(settings.rabbitmq_url)
             async with connection:
@@ -154,10 +174,22 @@ async def test_real_worker_duplicate_and_dlq(settings):
                 await message.ack()
             assert await worker.store.get(bad["task_id"]) is None
             assert model.predict.call_count == 4
+            task_records = [entry for entry in records if entry.get("task_id") == bad["task_id"]]
+            for attempt in (1, 2, 3):
+                assert any(entry["message"] == f"Inference failed on attempt {attempt}" and entry["level"] == "ERROR" and "ValueError" in entry.get("exception", "") for entry in task_records)
+            assert any(entry["message"] == "Task sent to DLQ after 3 attempts" and entry["level"] == "ERROR" for entry in task_records)
+            assert any(entry["message"] == "Received" for entry in task_records)
+            assert any(entry["message"] == "Processed" for entry in task_records)
+            assert any(entry["level"] == "DEBUG" and entry["logger"].startswith("aiormq.") for entry in records)
+            assert private_text not in json.dumps(records)
     finally:
         await worker.broker.stop()
         worker.pool.shutdown(wait=True)
         await worker.store.close()
+        for observed_logger in observed_loggers:
+            observed_logger.removeHandler(handler)
+        for observed_logger, level in saved_levels:
+            observed_logger.setLevel(level)
 
 
 @pytest.mark.skipif(
@@ -176,7 +208,7 @@ async def test_sigterm_finishes_accepted_message(settings, tmp_path):
         QUEUE_CAPACITY=str(settings.queue_capacity),
         MARKER=str(marker),
     )
-    # Only model loading is replaced: real process, FastStream, broker and database.
+
     process = subprocess.Popen(
         [sys.executable, "-m", "tests.integration.shutdown_worker"], env=env
     )
@@ -211,7 +243,7 @@ async def test_sigterm_finishes_accepted_message(settings, tmp_path):
 @pytest.mark.asyncio
 async def test_source_rate_converges_to_worker_throughput(settings):
     """Steady state: accepted publish rate == worker throughput; depth <= limit."""
-    settings.inference_delay = 0.1  # one thread -> ~10 tasks/s
+    settings.inference_delay = 0.1
     settings.queue_capacity = 5
     settings.queue_name = "rate_" + uuid.uuid4().hex
     model = Mock()
@@ -248,6 +280,6 @@ async def test_source_rate_converges_to_worker_throughput(settings):
         worker.pool.shutdown(wait=True)
         await worker.store.close()
     assert max(depth) <= settings.queue_capacity
-    steady = [t for t in accepted_at if t - started > 3]  # skip the fill-up phase
+    steady = [t for t in accepted_at if t - started > 3]
     rate = len(steady) / (accepted_at[-1] - (started + 3))
     assert 5 <= rate <= 15, f"source rate {rate:.1f}/s vs worker ~10/s"

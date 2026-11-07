@@ -1,0 +1,49 @@
+discovery.docker "project" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "5s"
+  filter {
+    name = "label"
+    values = ["com.docker.compose.project=" + sys.env("COMPOSE_PROJECT_NAME")]
+  }
+}
+
+discovery.relabel "pipeline" {
+  targets = discovery.docker.project.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    regex = "app|worker"
+    action = "keep"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label = "service"
+  }
+}
+
+loki.source.docker "pipeline" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.pipeline.output
+  forward_to = [loki.process.pipeline.receiver]
+}
+
+loki.process "pipeline" {
+  forward_to = [loki.write.local.receiver]
+  stage.json {
+    expressions = { level = "level" }
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  stage.static_labels {
+    values = { env = sys.env("ENV") }
+  }
+  stage.label_keep {
+    values = ["service", "level", "env"]
+  }
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

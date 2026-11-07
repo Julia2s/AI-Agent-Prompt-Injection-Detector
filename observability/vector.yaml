@@ -1,0 +1,29 @@
+data_dir: /var/lib/vector
+sources:
+  docker:
+    type: docker_logs
+    include_labels:
+    - com.docker.compose.project=${COMPOSE_PROJECT_NAME}
+transforms:
+  producer:
+    type: remap
+    inputs: [docker]
+    source: |
+      if .label."com.docker.compose.service" != "producer" { abort }
+      parsed, err = parse_json(.message)
+      if err == null {
+        .severity = to_string(parsed.level) ?? "INFO"
+      } else {
+        .severity = "INFO"
+      }
+sinks:
+  loki:
+    type: loki
+    inputs: [producer]
+    endpoint: http://loki:3100
+    encoding:
+      codec: text
+    labels:
+      service: producer
+      level: "{{ severity }}"
+      env: "${ENV}"

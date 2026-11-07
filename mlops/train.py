@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -25,6 +26,12 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from mlops.run_logging import quiet_run
+from src.core.logging import setup_logging
+
+setup_logging("train")
+logger = logging.getLogger(__name__)
+
 TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", "http://mlflow:5000")
 EXPERIMENT_NAME = "prompt-injection-experiments"
 MODEL_NAME = "prompt-injection-detector"
@@ -37,12 +44,12 @@ mlflow.set_experiment(EXPERIMENT_NAME)
 
 contract = json.loads(HANDOFF_PATH.read_text(encoding="utf-8"))
 if contract.get("experiment") and contract["experiment"] != EXPERIMENT_NAME:
-    print(
-        f"Note: handoff experiment={contract['experiment']!r}, "
-        f"this script writes to {EXPERIMENT_NAME!r}."
+    logger.warning(
+        "Handoff experiment=%s differs from training experiment=%s",
+        contract["experiment"], EXPERIMENT_NAME,
     )
 data_run_id = contract["data_run_id"]
-print(f"Data Run ID: {data_run_id}")
+logger.info("Data run ID: %s", data_run_id)
 
 
 def _load_split(uri: str) -> pd.DataFrame:
@@ -84,7 +91,7 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
     run_dir = ARTIFACTS_DIR / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    with mlflow.start_run(run_name=run_name) as run:
+    with quiet_run(mlflow.start_run(run_name=run_name)) as run:
         run_id = run.info.run_id
         mlflow.set_tag("data_run_id", data_run_id)
 
@@ -129,12 +136,14 @@ def run_experiment(run_name: str, vectorizer_params: dict, model) -> dict:
 
         mlflow.sklearn.log_model(sk_model=pipeline, artifact_path="model")
 
-        print(f"  F1: {metrics['f1_score']:.4f}, Accuracy: {metrics['accuracy']:.4f}")
-        print(f"  Run ID: {run_id}")
+        logger.info(
+            "Training run=%s run_id=%s f1=%.4f accuracy=%.4f",
+            run_name, run_id, metrics["f1_score"], metrics["accuracy"],
+        )
         return {"run_id": run_id, "metrics": metrics, "name": run_name}
 
 
-with mlflow.start_run(run_name="training-session") as session_run:
+with quiet_run(mlflow.start_run(run_name="training-session")) as session_run:
     mlflow.set_tag("stage", "training")
     train_df, val_df = _load_data()
     assert len(train_df) == contract["datasets"]["train"]["rows"], (
@@ -145,7 +154,7 @@ with mlflow.start_run(run_name="training-session") as session_run:
     )
     X_train, y_train = train_df["text"], train_df["label"]
     X_val, y_val = val_df["text"], val_df["label"]
-    print(f"Train: {len(train_df)} rows, Val: {len(val_df)} rows")
+    logger.info("Training rows=%s validation rows=%s", len(train_df), len(val_df))
     session_run_id = session_run.info.run_id
 
 results = {}
@@ -178,12 +187,10 @@ best_name, best_data = max(
 best_run_id = best_data["run_id"]
 best_f1 = best_data["metrics"]["f1_score"]
 
-print(f"Best experiment: {best_name}")
-print(f"F1-score: {best_f1:.4f}")
-print(f"Run ID: {best_run_id}")
+logger.info("Best experiment=%s f1=%.4f run_id=%s", best_name, best_f1, best_run_id)
 
 model_uri = f"runs:/{best_run_id}/model"
-print(f"Registering model from: {model_uri}")
+logger.info("Registering model from run_id=%s", best_run_id)
 
 client = mlflow.tracking.MlflowClient()
 with contextlib.suppress(mlflow.exceptions.RestException):
@@ -196,14 +203,14 @@ registered = client.create_model_version(
     description=f"Best run ({best_name}) with F1={best_f1:.4f}",
 )
 version = registered.version
-print(f"Model registered. Version: {version}")
+logger.info("Model registered version=%s", version)
 
 with contextlib.suppress(mlflow.exceptions.RestException):
     client.delete_registered_model_alias(MODEL_NAME, CHAMPION_ALIAS)
 client.set_registered_model_alias(
     name=MODEL_NAME, alias=CHAMPION_ALIAS, version=version
 )
-print(f"Alias {CHAMPION_ALIAS!r} assigned to version {version}")
+logger.info("Model alias=%s assigned to version=%s", CHAMPION_ALIAS, version)
 
 summary = {
     "experiment": EXPERIMENT_NAME,
@@ -221,7 +228,4 @@ summary = {
 summary_path = Path("outputs/training_summary.json")
 summary_path.parent.mkdir(parents=True, exist_ok=True)
 summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
-print(f"Summary written to {summary_path}")
-
-print("Done.")
-print(f"Inference URI: models:/{MODEL_NAME}@{CHAMPION_ALIAS}")
+logger.info("Training completed; summary written to %s", summary_path)

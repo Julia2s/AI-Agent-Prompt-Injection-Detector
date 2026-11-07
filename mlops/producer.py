@@ -24,28 +24,34 @@ from aio_pika.exceptions import AMQPException
 from mlops.messaging import declare_topology, make_broker, new_task, publish_task
 from mlops.metrics import SOURCE_COLUMNS, RateSampler, SourceStats, csv_line
 from mlops.settings import PipelineSettings
+from src.core.logging import setup_logging, task_context
 
 logger = logging.getLogger(__name__)
+metrics_logger = logging.getLogger("mlops.producer.metrics")
 TRANSIENT_ERRORS = (AMQPException, TimeoutError, ConnectionError, OSError)
-METRIC_PREFIX = "SOURCE_METRIC,"
 
 
 async def send_with_backpressure(
     broker, settings, task, sleep=asyncio.sleep, stats: SourceStats | None = None
 ):
+    with task_context(task["task_id"]):
+        await _send_with_backpressure(broker, settings, task, sleep, stats)
+
+
+async def _send_with_backpressure(broker, settings, task, sleep, stats):
     delay = settings.retry_delay
     while True:
         try:
             await publish_task(broker, settings, task)
             if stats is not None:
                 stats.accepted += 1
+            logger.info("Task published")
             return
         except TRANSIENT_ERRORS:
             if stats is not None:
                 stats.rejected += 1
             logger.warning(
-                "Publication not confirmed; retry task_id=%s in %.2fs",
-                task["task_id"],
+                "Publication not confirmed; retry in %.2fs",
                 delay,
             )
             await sleep(delay)
@@ -53,7 +59,7 @@ async def send_with_backpressure(
 
 
 def rows(path, batch_id, pad_bytes=0):
-    # Stable IDs: restarting the same input/batch gives no duplicate results.
+
     with Path(path).open(newline="", encoding="utf-8") as stream:
         for index, row in enumerate(csv.DictReader(stream)):
             text = row["text"]
@@ -70,8 +76,9 @@ async def report(sampler, metrics_file, interval=1.0):
             handle.write(",".join(SOURCE_COLUMNS) + "\n")
         while True:
             await asyncio.sleep(interval)
-            line = csv_line(sampler.sample())
-            print(METRIC_PREFIX + line, flush=True)
+            sample = sampler.sample()
+            line = csv_line(sample)
+            metrics_logger.info("Source metrics", extra={"source_metrics": sample})
             if handle:
                 handle.write(line + "\n")
                 handle.flush()
@@ -84,7 +91,7 @@ async def run_naive(broker, settings, tasks, stats, deadline):
         pending.discard(future)
         stats.buffered = len(pending)
         if future.cancelled() or future.exception() is not None:
-            stats.lost += 1  # nobody retries: the task is gone
+            stats.lost += 1
         else:
             stats.accepted += 1
 
@@ -95,7 +102,7 @@ async def run_naive(broker, settings, tasks, stats, deadline):
         pending.add(future)
         future.add_done_callback(done)
         stats.buffered = len(pending)
-        await asyncio.sleep(0)  # let the loop breathe, never wait for the broker
+        await asyncio.sleep(0)
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
 
@@ -104,7 +111,7 @@ async def run_backpressure(broker, settings, tasks, stats, deadline):
     for task in tasks:
         if deadline and time.monotonic() >= deadline:
             break
-        stats.buffered = 1  # exactly one task is held while we wait for the broker
+        stats.buffered = 1
         await send_with_backpressure(broker, settings, task, stats=stats)
         stats.buffered = 0
 
@@ -158,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--metrics-file", default=None)
     parser.add_argument("--pad-bytes", type=int, default=0, help="inflate messages")
     args = parser.parse_args()
-    logging.basicConfig(level=logging.INFO)
+    setup_logging("producer")
     asyncio.run(
         run(
             args.file,
