@@ -24,12 +24,22 @@ x-pipeline-env: &pipeline_env
   PUBLISH_TIMEOUT: ${PUBLISH_TIMEOUT:-1.0}
   SOURCE_BACKOFF_MAX: ${SOURCE_BACKOFF_MAX:-2.0}
   GRACEFUL_TIMEOUT: ${GRACEFUL_TIMEOUT:-300}
+  OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://otel-collector:4317}
+  OTEL_EXPORTER_OTLP_PROTOCOL: ${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}
+  OTEL_EXPORTER_OTLP_TIMEOUT: ${OTEL_EXPORTER_OTLP_TIMEOUT:-5}
+  OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER:-parentbased_always_on}
+  OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1.0}
+  OTEL_RESOURCE_ATTRIBUTES: service.version=${OTEL_SERVICE_VERSION:-0.1.0},deployment.environment.name=${ENV:-dev}
 services:
   app:
     build: .
     ports:
     - 127.0.0.1:8000:8000
-    environment: *pipeline_env
+    environment:
+      <<: *pipeline_env
+      OTEL_SERVICE_NAME: api
+      OTEL_SERVICE_INSTANCE_ID: api
     depends_on:
       db:
         condition: service_healthy
@@ -172,7 +182,10 @@ services:
     - faststream
     - run
     - mlops.worker:app
-    environment: *pipeline_env
+    environment:
+      <<: *pipeline_env
+      OTEL_SERVICE_NAME: worker
+      OTEL_SERVICE_INSTANCE_ID: ${WORKER_INSTANCE_ID:-worker-1}
     networks:
     - backend
     depends_on:
@@ -207,7 +220,10 @@ services:
     - demo-1
     - --repeat
     - '20'
-    environment: *pipeline_env
+    environment:
+      <<: *pipeline_env
+      OTEL_SERVICE_NAME: source
+      OTEL_SERVICE_INSTANCE_ID: ${SOURCE_INSTANCE_ID:-source}
     networks:
     - backend
     depends_on:

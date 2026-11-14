@@ -12,7 +12,10 @@ dependencies = [
     "mlflow==2.22.0",
     "scikit-learn==1.6.1",
     "pandas==2.2.3",
-    "faststream[rabbit,cli]==0.7.7",
+    "faststream[rabbit,cli,otel]==0.7.7",
+    "opentelemetry-sdk==1.45.1",
+    "opentelemetry-exporter-otlp==1.45.1",
+    "opentelemetry-instrumentation-fastapi==0.66b1",
     "seaborn>=0.13.2",
 ]
 
