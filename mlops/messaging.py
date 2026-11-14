@@ -1,11 +1,16 @@
 """One topology and publisher-confirm policy for every process."""
 
 import logging
+import os
 import time
 
 from faststream.rabbit import Channel, RabbitBroker, RabbitQueue
+from faststream.rabbit.opentelemetry import RabbitTelemetryMiddleware
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 
 from mlops.settings import PipelineSettings
+from src.core.tracing import configure_tracing
 
 
 class BrokerLogger(logging.LoggerAdapter):
@@ -37,7 +42,10 @@ def dead_queue(settings: PipelineSettings):
     return RabbitQueue(settings.queue_name + ".dlq", durable=True)
 
 
-def make_broker(settings: PipelineSettings):
+def make_broker(settings: PipelineSettings, service_name: str | None = None):
+    provider = configure_tracing(
+        service_name or os.getenv("OTEL_SERVICE_NAME", "worker")
+    )
     logger = BrokerLogger()
     broker = RabbitBroker(
         settings.rabbitmq_url,
@@ -48,6 +56,7 @@ def make_broker(settings: PipelineSettings):
             prefetch_count=settings.prefetch_count,
         ),
         graceful_timeout=settings.graceful_timeout,
+        middlewares=(RabbitTelemetryMiddleware(tracer_provider=provider),),
     )
     logger.broker = broker
     return broker
@@ -64,12 +73,21 @@ def new_task(task_id: str, text: str, **extra) -> dict:
 
 
 async def publish_task(broker, settings, task):
-    await broker.publish(
-        task,
-        queue=task_queue(settings),
-        persist=True,
-        mandatory=True,
-        timeout=settings.publish_timeout,
-        message_id=task["task_id"],
-        correlation_id=task["task_id"],
-    )
+    span = trace.get_tracer(__name__)
+    with span.start_as_current_span("publish") as current_span:
+        current_span.set_attribute("app.task_id", task["task_id"])
+        current_span.set_attribute("messaging.destination.name", settings.queue_name)
+        try:
+            await broker.publish(
+                task,
+                queue=task_queue(settings),
+                persist=True,
+                mandatory=True,
+                timeout=settings.publish_timeout,
+                message_id=task["task_id"],
+                correlation_id=task["task_id"],
+            )
+        except Exception as error:
+            current_span.record_exception(error)
+            current_span.set_status(Status(StatusCode.ERROR))
+            raise

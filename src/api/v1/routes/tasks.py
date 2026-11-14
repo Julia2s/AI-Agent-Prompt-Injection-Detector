@@ -17,6 +17,8 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Path, Response
+from opentelemetry import trace
+from opentelemetry.trace import Status, StatusCode
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -74,7 +76,7 @@ def overloaded(task_id: str, reason: str):
     with task_context(task_id):
         logger.warning("Returning HTTP 503: %s", reason)
     retry_after = pipeline_settings.retry_after
-    return HTTPException(
+    exception = HTTPException(
         status_code=503,
         detail={
             "error": "service_overloaded",
@@ -84,6 +86,13 @@ def overloaded(task_id: str, reason: str):
         },
         headers={"Retry-After": str(retry_after)},
     )
+    span = trace.get_current_span()
+    if span.get_span_context().is_valid:
+        span.record_exception(exception)
+        span.set_status(Status(StatusCode.ERROR))
+        span.set_attribute("http.response.status_code", 503)
+        span.add_event("api.response.503", {"app.task_id": task_id})
+    return exception
 
 
 @router.post(
@@ -106,6 +115,9 @@ async def _create_task(request: TaskRequest, response: Response, task_id: str):
     try:
         row, created = await store.create_pending(task_id, request.text)
     except (SQLAlchemyError, OSError) as error:
+        span = trace.get_current_span()
+        span.record_exception(error)
+        span.set_status(Status(StatusCode.ERROR))
         raise overloaded(task_id, "Result storage is unavailable") from error
     if row.text != request.text:
         raise HTTPException(
@@ -136,6 +148,9 @@ async def get_task(task_id: str = Path(min_length=1, max_length=128)):
     try:
         row = await store.get(task_id)
     except (SQLAlchemyError, OSError) as error:
+        span = trace.get_current_span()
+        span.record_exception(error)
+        span.set_status(Status(StatusCode.ERROR))
         raise overloaded(task_id, "Result storage is unavailable") from error
     if row is None:
         raise HTTPException(status_code=404, detail="Unknown task_id")

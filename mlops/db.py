@@ -65,6 +65,12 @@ class Failure(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class DeliveryAttempt(Base):
+    __tablename__ = "task_delivery_attempts"
+    message_key: Mapped[str] = mapped_column(String, primary_key=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class ResultStore:
     def __init__(self, url):
         self.engine = create_async_engine(url)
@@ -154,4 +160,14 @@ class ResultStore:
                 index_elements=[Failure.message_key],
                 set_={"attempts": Failure.attempts + 1},
             ).returning(Failure.attempts)
+            return (await session.execute(stmt)).scalar_one()
+
+    async def record_attempt(self, key):
+        """Persist the delivery number used by worker spans and retry policy."""
+        async with self.sessions.begin() as session:
+            stmt = self.insert(DeliveryAttempt).values(message_key=key, attempts=1)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[DeliveryAttempt.message_key],
+                set_={"attempts": DeliveryAttempt.attempts + 1},
+            ).returning(DeliveryAttempt.attempts)
             return (await session.execute(stmt)).scalar_one()
