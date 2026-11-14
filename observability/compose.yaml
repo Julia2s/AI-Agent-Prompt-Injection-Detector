@@ -48,9 +48,41 @@ services:
         condition: service_healthy
     mem_limit: 256m
     networks: [observability]
+  tempo:
+    image: grafana/tempo:${TEMPO_VERSION:-3.1.1}
+    profiles: [traces, observability]
+    command: ["-target=all", "-config.file=/etc/tempo.yaml"]
+    ports:
+    - 127.0.0.1:3200:3200
+    volumes:
+    - ./tempo.yaml:/etc/tempo.yaml:ro
+    - tempo_data:/var/tempo
+    healthcheck:
+      test: ["CMD", "/tempo", "--health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: 384m
+    networks: [observability]
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.165.1}
+    profiles: [traces, observability]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+    - 127.0.0.1:4317:4317
+    - 127.0.0.1:4318:4318
+    volumes:
+    - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
+      tempo:
+        condition: service_healthy
+    mem_limit: 128m
+    networks: [backend, observability]
 volumes:
   loki_data: null
   alloy_data: null
   vector_data: null
+  tempo_data: null
 networks:
   observability: null

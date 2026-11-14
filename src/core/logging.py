@@ -10,6 +10,8 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import UTC, datetime
 
+from opentelemetry import trace
+
 task_id_context: ContextVar[str | None] = ContextVar("task_id", default=None)
 DSN_CREDENTIALS = re.compile(r"(\b[a-z][a-z0-9+.-]*://)[^\s/@]+@", re.IGNORECASE)
 CREDENTIAL_FIELD = re.compile(
@@ -78,6 +80,10 @@ class JsonFormatter(logging.Formatter):
             entry["source_metrics"] = record.source_metrics
         if record.exc_info:
             entry["exception"] = self.safe_exception(record.exc_info)
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid:
+            entry["trace_id"] = f"{span_context.trace_id:032x}"
+            entry["span_id"] = f"{span_context.span_id:016x}"
         return json.dumps(entry, ensure_ascii=False)
 
     def safe_exception(self, exc_info) -> str:
