@@ -49,7 +49,7 @@ services:
     mem_limit: 256m
     networks: [observability]
   tempo:
-    image: grafana/tempo:${TEMPO_VERSION:-3.1.1}
+    image: grafana/tempo:${TEMPO_VERSION:-2.7.1}
     profiles: [traces, observability]
     command: ["-target=all", "-config.file=/etc/tempo.yaml"]
     ports:
@@ -58,16 +58,16 @@ services:
     - ./tempo.yaml:/etc/tempo.yaml:ro
     - tempo_data:/var/tempo
     healthcheck:
-      test: ["CMD", "/tempo", "--health"]
+      test: ["CMD-SHELL", "wget --spider --quiet http://localhost:3200/ready || exit 1"]
       interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     mem_limit: 384m
     networks: [observability]
   otel-collector:
     image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.165.1}
-    profiles: [traces, observability]
+    profiles: [traces, metrics, observability]
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
     - 127.0.0.1:4317:4317
@@ -77,12 +77,64 @@ services:
     depends_on:
       tempo:
         condition: service_healthy
+      victoriametrics:
+        condition: service_healthy
     mem_limit: 128m
     networks: [backend, observability]
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION:-v1.156.0}
+    profiles: [metrics, observability]
+    command:
+      - "-retentionPeriod=72h"
+      - "-search.maxQueryLen=16KB"
+    ports:
+      - 127.0.0.1:8428:8428
+    volumes:
+      - vm_data:/victoria-metrics-data
+    healthcheck:
+      test: ["CMD", "/victoria-metrics-prod", "-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    mem_limit: 256m
+    networks: [observability]
+  grafana:
+    image: grafana/grafana:${GRAFANA_VERSION:-11.4.0}
+    profiles: [observability]
+    ports:
+      - 127.0.0.1:3000:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+      GF_PATHS_PROVISIONING: /etc/grafana/provisioning
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      victoriametrics:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      tempo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    mem_limit: 192m
+    networks: [observability]
 volumes:
   loki_data: null
   alloy_data: null
   vector_data: null
   tempo_data: null
+  vm_data: null 
+  grafana_data: null
 networks:
   observability: null
