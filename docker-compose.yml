@@ -160,6 +160,7 @@ services:
     ports:
     - 127.0.0.1:5672:5672
     - 127.0.0.1:15672:15672
+    - 127.0.0.1:15692:15692
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
@@ -176,6 +177,7 @@ services:
     volumes:
     - rabbitmq_data:/var/lib/rabbitmq
     - ./infra/rabbitmq.conf:/etc/rabbitmq/conf.d/20-stats.conf:ro
+    - ./infra/rabbitmq-enabled-plugins:/etc/rabbitmq/enabled_plugins:ro  # ← новое
   worker:
     build: .
     command:

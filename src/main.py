@@ -16,6 +16,9 @@ from src.core.broker import broker, pipeline_settings
 from src.core.logging import setup_logging
 from src.core.tracing import current_provider, shutdown_tracing
 
+import time
+from mlops.otel_metrics import init_metrics, shutdown_metrics
+
 setup_logging("api")
 logger = logging.getLogger(__name__)
 
@@ -53,6 +56,23 @@ FastAPIInstrumentor.instrument_app(
     tracer_provider=current_provider(),
     excluded_urls="/healthz,/api/v1/health",
 )
+
+METRICS = init_metrics()
+
+@app.middleware("http")
+async def metrics_middleware(request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    route = request.scope.get("route")
+    path = getattr(route, "path", request.url.path)
+    if path not in ("/healthz", "/api/v1/health"):
+        METRICS["requests_total"].add(
+            1, {"route": path, "status_code": str(response.status_code)}
+        )
+        METRICS["response_duration"].record(
+            time.perf_counter() - started, {"route": path}
+        )
+    return response
 
 app.include_router(healthz_router)
 app.include_router(version_router)

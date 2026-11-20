@@ -23,10 +23,15 @@ from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
 
+import atexit
+from mlops.otel_metrics import init_metrics, shutdown_metrics
+
 setup_logging("worker")
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
+METRICS = init_metrics()
+atexit.register(shutdown_metrics)
 
 class TaskMessage(BaseModel):
     task_id: str = Field(min_length=1, max_length=128)
@@ -91,22 +96,24 @@ class Worker:
         )(self.process_message)
 
     async def process_message(self, body: bytes, message: RabbitMessage):
-        with task_context(message.correlation_id), tracer.start_as_current_span(
-            "process"
-        ) as span:
+        with task_context(message.correlation_id), tracer.start_as_current_span("process") as span:
             span.set_attribute("app.task_id", message.correlation_id or "")
             raw_message = getattr(message, "raw_message", None)
             if raw_message is not None:
-                span.set_attribute(
-                    "messaging.message.redelivered",
-                    bool(getattr(raw_message, "redelivered", False)),
-                )
+                redelivered = bool(getattr(raw_message, "redelivered", False))
+                span.set_attribute("messaging.message.redelivered", redelivered)
+                if redelivered:
+                    METRICS["redeliveries_total"].add(1)
+
+            METRICS["inflight"].add(1)
             try:
                 await self.process(body)
             except Exception as error:
                 span.record_exception(error)
                 span.set_status(Status(StatusCode.ERROR))
                 raise
+            finally:
+                METRICS["inflight"].add(-1)
 
     async def start(self):
         await self.store.initialize()
@@ -185,19 +192,24 @@ class Worker:
         attempt = await self.store.record_attempt(key)
         process_span = trace.get_current_span()
         process_span.set_attribute("app.delivery_attempt", attempt)
+
+        METRICS["inflight"].add(1)
         try:
             task = TaskMessage.model_validate_json(body)
         except ValidationError as error:
             process_span.record_exception(error)
             process_span.set_status(Status(StatusCode.ERROR))
             await self.to_dlq(body, key, attempt, error)
+            METRICS["tasks_total"].add(1, {"result": "dlq"})
             return
+
         process_span.set_attribute("app.task_id", task.task_id)
         if task.created_at is not None:
             process_span.set_attribute(
                 "app.queue_wait_ms",
                 max(0.0, (time.time() - task.created_at) * 1000),
             )
+
         existing = await self.store.get(task.task_id)
         if existing is not None:
             if existing.text != task.text:
@@ -216,12 +228,12 @@ class Worker:
                 "Retry budget was exhausted before redelivery",
             )
             return
+        
         started = time.perf_counter()
+        
         try:
             with tracer.start_as_current_span("inference") as inference_span:
-                inference_span.set_attribute(
-                    "app.model.alias", self.settings.model_alias
-                )
+                inference_span.set_attribute("app.model.alias", self.settings.model_alias)
                 inference_span.set_attribute("app.model.version", self.model_version)
                 inference_span.set_attribute("app.delivery_attempt", attempt)
                 context = copy_context()
@@ -231,28 +243,29 @@ class Worker:
                     partial(self.predict, task.text),
                 )
                 inference_ms = (time.perf_counter() - started) * 1000
-                inference_span.set_attribute(
-                    "app.inference.duration_ms", inference_ms
+                inference_span.set_attribute("app.inference.duration_ms", inference_ms)
+                
+                METRICS["inference_duration"].record(
+                    inference_ms / 1000, 
+                    {"model_alias": self.settings.model_alias}
                 )
         except Exception as failure:
             process_span.record_exception(failure)
             process_span.set_status(Status(StatusCode.ERROR))
             logger.exception("Inference failed on attempt %s", attempt)
+            METRICS["tasks_total"].add(1, {"result": "error"})  # ← добавить
             if attempt >= self.settings.max_attempts:
-                await self.to_dlq(
-                    body,
-                    key,
-                    self.settings.max_attempts,
-                    failure,
-                )
+                await self.to_dlq(body, key, self.settings.max_attempts, failure)
+                METRICS["tasks_total"].add(1, {"result": "dlq"})  # ← добавить
                 return
-
             raise
+        
         latency_ms = (
             max(0.0, (time.time() - task.created_at) * 1000)
             if task.created_at is not None
             else None
         )
+
         with tracer.start_as_current_span("database.write_result") as db_span:
             db_span.set_attribute("db.system", "postgresql")
             db_span.set_attribute("app.task_id", task.task_id)
@@ -265,13 +278,14 @@ class Worker:
                 db_span.record_exception(error)
                 db_span.set_status(Status(StatusCode.ERROR))
                 raise
+        
         logger.info("Task result saved")
+        METRICS["tasks_total"].add(1, {"result": "ok"})
 
         stored = await self.store.get(task.task_id)
         if stored.text != task.text:
-            await self.to_dlq(
-                body, key, attempt, "task_id reused with different text"
-            )
+            await self.to_dlq(body, key, attempt, "task_id reused with different text")
+            METRICS["tasks_total"].add(1, {"result": "dlq"})
 
     async def health(self, reader, writer):
         await reader.read(4096)

@@ -28,6 +28,12 @@ from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
 
+from mlops.otel_metrics import init_metrics, shutdown_metrics
+import atexit
+
+METRICS = init_metrics()
+atexit.register(shutdown_metrics)
+
 logger = logging.getLogger(__name__)
 metrics_logger = logging.getLogger("mlops.producer.metrics")
 TRANSIENT_ERRORS = (AMQPException, TimeoutError, ConnectionError, OSError)
@@ -51,11 +57,14 @@ async def _send_with_backpressure(broker, settings, task, sleep, stats):
             await publish_task(broker, settings, task)
             if stats is not None:
                 stats.accepted += 1
+                METRICS["published_total"].add(1) 
             logger.info("Task published")
             return
         except TRANSIENT_ERRORS as error:
             if stats is not None:
                 stats.rejected += 1
+                METRICS["rejected_total"].add(1, {"reason": type(error).__name__})
+                METRICS["backoff_seconds_total"].add(delay)
             span = trace.get_current_span()
             span.add_event(
                 "publisher.rejected",
