@@ -56,7 +56,7 @@ FastAPIInstrumentor.instrument_app(
     excluded_urls="/healthz,/api/v1/health",
 )
 
-METRICS = init_metrics()
+METRICS = init_metrics("api")
 
 
 @app.middleware("http")

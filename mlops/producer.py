@@ -30,7 +30,7 @@ from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
 
-METRICS = init_metrics()
+METRICS = init_metrics("source")
 atexit.register(shutdown_metrics)
 
 logger = logging.getLogger(__name__)

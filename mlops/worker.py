@@ -29,7 +29,7 @@ setup_logging("worker")
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
-METRICS = init_metrics()
+METRICS = init_metrics("worker")
 atexit.register(shutdown_metrics)
 
 

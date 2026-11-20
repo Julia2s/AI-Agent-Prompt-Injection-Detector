@@ -15,10 +15,9 @@ API_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
 _provider: MeterProvider | None = None
 
 
-def init_metrics() -> dict:
+def init_metrics(service: str) -> dict:
     """Создаёт MeterProvider и возвращает словарь инструментов текущего сервиса."""
     global _provider
-    service = os.environ.get("OTEL_SERVICE_NAME", "unknown")
     disabled = os.environ.get("OTEL_SDK_DISABLED", "true").lower() == "true"
 
     readers = []
