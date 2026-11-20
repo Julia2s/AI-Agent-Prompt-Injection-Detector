@@ -22,7 +22,7 @@ datasources:
       maxLines: 1000
       derivedFields:
         - name: TraceID
-          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+          matcherRegex: '"trace_id":\s*"([a-f0-9]+)"'
           datasourceUid: tempo-ds
           url: "$${__value.raw}"
           urlDisplayLabel: "Open trace"
@@ -36,10 +36,9 @@ datasources:
     jsonData:
       tracesToLogsV2:
         datasourceUid: loki-ds
-        filterByTraceID: true
+        customQuery: true
+        query: '{service=~".+"} |= "$${__trace.traceId}"'
+        filterByTraceID: false
         filterBySpanID: false
-        tags:
-          - key: service.name
-            value: service
       nodeGraph:
         enabled: true
