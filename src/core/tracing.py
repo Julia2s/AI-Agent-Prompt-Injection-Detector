@@ -38,9 +38,7 @@ def _resource_attributes(service_name: str) -> dict[str, str]:
             attributes[key.strip()] = value.strip()
 
     attributes.setdefault("service.version", os.getenv("APP_VERSION", "0.1.0"))
-    attributes.setdefault(
-        "deployment.environment.name", os.getenv("ENV", "dev")
-    )
+    attributes.setdefault("deployment.environment.name", os.getenv("ENV", "dev"))
     attributes.setdefault(
         "service.instance.id",
         os.getenv("OTEL_SERVICE_INSTANCE_ID") or socket.gethostname(),
@@ -50,9 +48,9 @@ def _resource_attributes(service_name: str) -> dict[str, str]:
 
 
 def _sampler():
-    sampler_name = os.getenv(
-        "OTEL_TRACES_SAMPLER", "parentbased_always_on"
-    ).strip().lower()
+    sampler_name = (
+        os.getenv("OTEL_TRACES_SAMPLER", "parentbased_always_on").strip().lower()
+    )
     sampler_arg = float(os.getenv("OTEL_TRACES_SAMPLER_ARG", "1.0"))
     if not 0.0 <= sampler_arg <= 1.0:
         raise ValueError("OTEL_TRACES_SAMPLER_ARG must be between 0 and 1")
@@ -63,9 +61,7 @@ def _sampler():
         "traceidratio": TraceIdRatioBased(sampler_arg),
         "parentbased_always_on": ParentBased(root=ALWAYS_ON),
         "parentbased_always_off": ParentBased(root=ALWAYS_OFF),
-        "parentbased_traceidratio": ParentBased(
-            root=TraceIdRatioBased(sampler_arg)
-        ),
+        "parentbased_traceidratio": ParentBased(root=TraceIdRatioBased(sampler_arg)),
     }
     try:
         return samplers[sampler_name]

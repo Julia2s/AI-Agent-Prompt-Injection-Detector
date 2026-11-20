@@ -187,7 +187,7 @@ services:
     environment:
       <<: *pipeline_env
       OTEL_SERVICE_NAME: worker
-      OTEL_SERVICE_INSTANCE_ID: ${WORKER_INSTANCE_ID:-worker-1}
+      OTEL_SERVICE_INSTANCE_ID: ${WORKER_INSTANCE_ID:-}
     networks:
     - backend
     depends_on:

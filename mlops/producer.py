@@ -12,6 +12,7 @@ naive                   EXPERIMENT BASELINE ONLY. Fire-and-forget: every row bec
 
 import argparse
 import asyncio
+import atexit
 import contextlib
 import csv
 import hashlib
@@ -24,12 +25,10 @@ from opentelemetry import trace
 
 from mlops.messaging import declare_topology, make_broker, new_task, publish_task
 from mlops.metrics import SOURCE_COLUMNS, RateSampler, SourceStats, csv_line
+from mlops.otel_metrics import init_metrics, shutdown_metrics
 from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
-
-from mlops.otel_metrics import init_metrics, shutdown_metrics
-import atexit
 
 METRICS = init_metrics()
 atexit.register(shutdown_metrics)
@@ -43,9 +42,10 @@ tracer = trace.get_tracer(__name__)
 async def send_with_backpressure(
     broker, settings, task, sleep=asyncio.sleep, stats: SourceStats | None = None
 ):
-    with task_context(task["task_id"]), tracer.start_as_current_span(
-        "source.publish_task"
-    ) as span:
+    with (
+        task_context(task["task_id"]),
+        tracer.start_as_current_span("source.publish_task") as span,
+    ):
         span.set_attribute("app.task_id", task["task_id"])
         await _send_with_backpressure(broker, settings, task, sleep, stats)
 
@@ -57,7 +57,7 @@ async def _send_with_backpressure(broker, settings, task, sleep, stats):
             await publish_task(broker, settings, task)
             if stats is not None:
                 stats.accepted += 1
-                METRICS["published_total"].add(1) 
+                METRICS["published_total"].add(1)
             logger.info("Task published")
             return
         except TRANSIENT_ERRORS as error:
@@ -130,9 +130,10 @@ async def run_naive(broker, settings, tasks, stats, deadline):
 
 
 async def _publish_naive(broker, settings, task):
-    with task_context(task["task_id"]), tracer.start_as_current_span(
-        "source.publish_task"
-    ) as span:
+    with (
+        task_context(task["task_id"]),
+        tracer.start_as_current_span("source.publish_task") as span,
+    ):
         span.set_attribute("app.task_id", task["task_id"])
         await publish_task(broker, settings, task)
 

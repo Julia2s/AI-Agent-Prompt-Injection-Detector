@@ -1,10 +1,12 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from mlops.messaging import declare_topology
+from mlops.otel_metrics import init_metrics
 from src.api.v1.routes import (
     health_router,
     healthz_router,
@@ -15,9 +17,6 @@ from src.api.v1.routes.tasks import store
 from src.core.broker import broker, pipeline_settings
 from src.core.logging import setup_logging
 from src.core.tracing import current_provider, shutdown_tracing
-
-import time
-from mlops.otel_metrics import init_metrics, shutdown_metrics
 
 setup_logging("api")
 logger = logging.getLogger(__name__)
@@ -59,6 +58,7 @@ FastAPIInstrumentor.instrument_app(
 
 METRICS = init_metrics()
 
+
 @app.middleware("http")
 async def metrics_middleware(request, call_next):
     started = time.perf_counter()
@@ -73,6 +73,7 @@ async def metrics_middleware(request, call_next):
             time.perf_counter() - started, {"route": path}
         )
     return response
+
 
 app.include_router(healthz_router)
 app.include_router(version_router)

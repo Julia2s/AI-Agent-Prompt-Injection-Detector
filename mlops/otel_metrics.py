@@ -1,8 +1,8 @@
 import os
+import socket
 
-from opentelemetry.metrics import Observation
-from opentelemetry import metrics as otel_metrics
 from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.metrics import Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
@@ -29,13 +29,16 @@ def init_metrics() -> dict:
             ),
             insecure=True,
         )
-        readers.append(PeriodicExportingMetricReader(exporter, export_interval_millis=10000))
+        readers.append(
+            PeriodicExportingMetricReader(exporter, export_interval_millis=10000)
+        )
 
     _provider = MeterProvider(
         resource=Resource.create(
             {
                 "service.name": service,
-                "service.instance.id": os.environ.get("OTEL_SERVICE_INSTANCE_ID", "default"),
+                "service.instance.id": os.environ.get("OTEL_SERVICE_INSTANCE_ID")
+                or socket.gethostname(),
                 "service.version": os.environ.get("OTEL_SERVICE_VERSION", "0.1.0"),
                 "deployment.environment.name": os.environ.get("ENV", "dev"),
             }
@@ -55,43 +58,52 @@ def init_metrics() -> dict:
 
     if service == "api":
         instruments["requests_total"] = meter.create_counter(
-            "api_requests_total", unit="1",
+            "api_requests_total",
+            unit="1",
             description="HTTP requests by route and status code",
         )
         instruments["response_duration"] = meter.create_histogram(
-            "api_response_duration_seconds", unit="s",
+            "api_response_duration_seconds",
+            unit="s",
             description="API response latency",
             explicit_bucket_boundaries_advisory=list(API_BUCKETS),
         )
     elif service == "worker":
         instruments["tasks_total"] = meter.create_counter(
-            "worker_tasks_total", unit="1",
+            "worker_tasks_total",
+            unit="1",
             description="Processed tasks by result (ok/error/dlq)",
         )
         instruments["inference_duration"] = meter.create_histogram(
-            "worker_inference_duration_seconds", unit="s",
+            "worker_inference_duration_seconds",
+            unit="s",
             description="Model inference latency",
             explicit_bucket_boundaries_advisory=list(INFERENCE_BUCKETS),
         )
         instruments["inflight"] = meter.create_up_down_counter(
-            "worker_inflight", unit="1",
+            "worker_inflight",
+            unit="1",
             description="Tasks currently being processed",
         )
         instruments["redeliveries_total"] = meter.create_counter(
-            "worker_redeliveries_total", unit="1",
+            "worker_redeliveries_total",
+            unit="1",
             description="Redelivered messages",
         )
     elif service == "source":
         instruments["published_total"] = meter.create_counter(
-            "source_published_total", unit="1",
+            "source_published_total",
+            unit="1",
             description="Tasks confirmed by broker",
         )
         instruments["rejected_total"] = meter.create_counter(
-            "source_rejected_total", unit="1",
+            "source_rejected_total",
+            unit="1",
             description="Broker rejects (nack/timeout on publish)",
         )
         instruments["backoff_seconds_total"] = meter.create_counter(
-            "source_backoff_seconds_total", unit="s",
+            "source_backoff_seconds_total",
+            unit="s",
             description="Cumulative backoff wait time",
         )
     return instruments

@@ -103,3 +103,42 @@ uv run pytest -m integration tests/integration -v
 Интеграционные тесты используют временные контейнеры RabbitMQ и PostgreSQL. Нагрузочные сценарии рассчитаны на Bash или WSL, а графики строятся скриптом `scripts/report.py`.
 
 При `INFERENCE_DELAY=0.5`, очереди размером 50 и одном слоте worker ограниченная очередь удерживала скорость источника примерно на уровне пропускной способности worker. После добавления второго worker пропускная способность выросла примерно вдвое. Подробные результаты находятся в `runs/report/summary.md`.
+
+## Наблюдаемость: стек, бюджет и обоснования
+
+### Стек и почему
+- **Логи**: Loki + Grafana Alloy/Vector. Loki индексирует только лейблы низкой кардинальности (`service`, `level`, `env`), а тело хранит сжатыми чанками. Это дёшево при больших объёмах; поиск по `task_id` или `trace_id` происходит через быстрые line-фильтры, а не через дорогой полнотекстовый индекс (как в ELK).
+- **Трейсы**: Tempo. Дешёвое объектное хранение, нативная поддержка OTLP и отличная интеграция с Loki для корреляции.
+- **Метрики**: VictoriaMetrics single-node. Полностью совместима с PromQL, но потребляет в разы меньше RAM (десятки MiB против сотен у Prometheus), что критично для лимитов стенда.
+
+### Pull vs Push
+- **Приложения (API, worker, source)** пушат метрики по OTLP в Collector. Источник — короткоживущий пакетный процесс; pull-скрейп с интервалом 15 с может полностью пропустить его жизненный цикл. Push + `force_flush` при выходе гарантирует доставку последнего батча.
+- **RabbitMQ** — долгоживущий сервис, который сам отдаёт `/metrics`. Мы снимаем их pull'ом через `prometheus` receiver в Collector (порт 15692, per-queue метрики включены через `prometheus.return_per_object_metrics=true`).
+
+### Бакеты гистограмм
+`INFERENCE_DELAY` в конфигурации = 0.5 с. Границы для inference: `(0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 5)`. Реальная латентность (0.5–0.75 с) попадает в середину сетки, что делает расчёт p95/p99 точным. Дефолтные бакеты (до 10 с) дали бы грубую ошибку квантиля. Для API используются `(0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5)` под быстрые ответы 202 и 503.
+
+### Кардинальность (оценка числа временных рядов)
+Число рядов = произведение уникальных значений лейблов:
+- `api_requests_total`: 3 route × 5 status_code = 15
+- `api_response_duration_seconds`: 3 route × (8 le + sum + count) = 30
+- `worker_tasks_total`: 3 result × 2 instance = 6
+- `worker_inference_duration_seconds`: 1 alias × 2 instance × 12 = 24
+- `worker_inflight` / `redeliveries`: 2 instance × 2 = 4
+- `source_*`: 1 + 3 reason + 1 = 5
+- `process_memory_rss_mib`: 3 service × 2 instance = 4
+- RabbitMQ per-object + erlang: ~2 очереди × 12 + conn/chan + VM ≈ 160
+**Итого**: ≈ 250 рядов. 
+*Если бы мы добавили `task_id` в лейблы метрик*: 6000 задач × 3 result × 2 instance = 36 000 рядов на один counter (гистограмма ×12 ≈ 432 000). Это взрыв кардинальности, поэтому `task_id` и `trace_id` живут только в логах и атрибутах спанов.
+
+### Бюджет памяти (лимиты, сумма ≈ 1.44 ГБ)
+loki: 384m, alloy: 128m, vector: 128m, tempo: 256m, otel-collector: 128m, victoriametrics: 192m, grafana: 256m. 
+Фактическое потребление под нагрузкой (`docker stats`):
+```text
+ai-agent-prompt-injection-detector-vector-1                    17.84MiB / 128MiB     13.94%
+ai-agent-prompt-injection-detector-grafana-1                   70.23MiB / 256MiB     27.43%
+ai-agent-prompt-injection-detector-alloy-1                     51.39MiB / 128MiB     40.15%
+ai-agent-prompt-injection-detector-loki-1                      75.74MiB / 384MiB     19.72%
+ai-agent-prompt-injection-detector-tempo-1                     255.4MiB / 256MiB     99.78%
+ai-agent-prompt-injection-detector-victoriametrics-1           181.4MiB / 192MiB     94.47%
+ai-agent-prompt-injection-detector-otel-collector-1            110.2MiB / 128MiB     86.10%
