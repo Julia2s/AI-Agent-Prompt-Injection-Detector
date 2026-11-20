@@ -23,8 +23,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
 from mlops.db import SUCCESS, ResultStore
+from mlops.errors import TRANSIENT_ERRORS
 from mlops.messaging import new_task, publish_task
-from mlops.producer import TRANSIENT_ERRORS
 from src.core.broker import broker, pipeline_settings
 from src.core.logging import task_context
 

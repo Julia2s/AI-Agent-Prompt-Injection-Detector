@@ -36,6 +36,8 @@ datasources:
     jsonData:
       tracesToLogsV2:
         datasourceUid: loki-ds
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
         customQuery: true
         query: '{service=~".+"} |= "$${__trace.traceId}"'
         filterByTraceID: false

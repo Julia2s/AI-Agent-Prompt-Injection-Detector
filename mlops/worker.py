@@ -1,7 +1,6 @@
 """FastStream worker: bounded concurrency, durable retries, commit before ACK."""
 
 import asyncio
-import atexit
 import base64
 import hashlib
 import logging
@@ -20,7 +19,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from mlops.db import SUCCESS, ResultStore
 from mlops.messaging import dead_queue, declare_topology, make_broker, task_queue
-from mlops.otel_metrics import init_metrics, shutdown_metrics
+from mlops.otel_metrics import init_metrics
 from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
@@ -30,7 +29,6 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 METRICS = init_metrics("worker")
-atexit.register(shutdown_metrics)
 
 
 class TaskMessage(BaseModel):
@@ -170,6 +168,7 @@ class Worker:
                 span.record_exception(failure)
                 span.set_status(Status(StatusCode.ERROR))
                 raise
+            METRICS["tasks_total"].add(1, {"result": "dlq"})
             logger.error("Task sent to DLQ after %s attempts", attempts)
 
     async def process(self, body: bytes):
@@ -196,14 +195,12 @@ class Worker:
         process_span = trace.get_current_span()
         process_span.set_attribute("app.delivery_attempt", attempt)
 
-        METRICS["inflight"].add(1)
         try:
             task = TaskMessage.model_validate_json(body)
         except ValidationError as error:
             process_span.record_exception(error)
             process_span.set_status(Status(StatusCode.ERROR))
             await self.to_dlq(body, key, attempt, error)
-            METRICS["tasks_total"].add(1, {"result": "dlq"})
             return
 
         process_span.set_attribute("app.task_id", task.task_id)
@@ -257,10 +254,8 @@ class Worker:
             process_span.record_exception(failure)
             process_span.set_status(Status(StatusCode.ERROR))
             logger.exception("Inference failed on attempt %s", attempt)
-            METRICS["tasks_total"].add(1, {"result": "error"})  # ← добавить
             if attempt >= self.settings.max_attempts:
                 await self.to_dlq(body, key, self.settings.max_attempts, failure)
-                METRICS["tasks_total"].add(1, {"result": "dlq"})  # ← добавить
                 return
             raise
 
@@ -283,13 +278,12 @@ class Worker:
                 db_span.set_status(Status(StatusCode.ERROR))
                 raise
 
-        logger.info("Task result saved")
-        METRICS["tasks_total"].add(1, {"result": "ok"})
-
         stored = await self.store.get(task.task_id)
         if stored.text != task.text:
             await self.to_dlq(body, key, attempt, "task_id reused with different text")
-            METRICS["tasks_total"].add(1, {"result": "dlq"})
+
+        logger.info("Task result saved")
+        METRICS["tasks_total"].add(1, {"result": "ok"})
 
     async def health(self, reader, writer):
         await reader.read(4096)

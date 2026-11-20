@@ -1,3 +1,5 @@
+import atexit
+import logging
 import os
 import socket
 
@@ -12,18 +14,23 @@ from mlops.metrics import rss_mb
 INFERENCE_BUCKETS = (0.1, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 5.0)
 API_BUCKETS = (0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0)
 
-_provider: MeterProvider | None = None
+_providers: list[MeterProvider] = []
+logger = logging.getLogger(__name__)
 
 
 def init_metrics(service: str) -> dict:
     """Создаёт MeterProvider и возвращает словарь инструментов текущего сервиса."""
-    global _provider
     disabled = os.environ.get("OTEL_SDK_DISABLED", "true").lower() == "true"
+    disabled = (
+        disabled
+        or os.environ.get("OTEL_METRICS_EXPORTER", "otlp").strip().lower() == "none"
+    )
 
     readers = []
     if not disabled:
         exporter = OTLPMetricExporter(
-            endpoint=os.environ.get(
+            endpoint=os.environ.get("OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+            or os.environ.get(
                 "OTEL_EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4317"
             ),
             insecure=True,
@@ -32,10 +39,10 @@ def init_metrics(service: str) -> dict:
             PeriodicExportingMetricReader(exporter, export_interval_millis=10000)
         )
 
-    _provider = MeterProvider(
+    provider = MeterProvider(
         resource=Resource.create(
             {
-                "service.name": service,
+                "service.name": os.environ.get("OTEL_SERVICE_NAME", service),
                 "service.instance.id": os.environ.get("OTEL_SERVICE_INSTANCE_ID")
                 or socket.gethostname(),
                 "service.version": os.environ.get("OTEL_SERVICE_VERSION", "0.1.0"),
@@ -43,8 +50,10 @@ def init_metrics(service: str) -> dict:
             }
         ),
         metric_readers=readers,
+        shutdown_on_exit=False,
     )
-    meter = _provider.get_meter(f"mlops.{service}")
+    _providers.append(provider)
+    meter = provider.get_meter(f"mlops.{service}")
 
     instruments = {
         "rss_mib": meter.create_observable_gauge(
@@ -109,9 +118,25 @@ def init_metrics(service: str) -> dict:
 
 
 def shutdown_metrics() -> None:
-    """force_flush важен для короткоживущего producer'а: метрики уходят до выхода."""
-    global _provider
-    if _provider is not None:
-        _provider.force_flush()
-        _provider.shutdown()
-        _provider = None
+    """Flush and close every metrics provider once."""
+    while _providers:
+        provider = _providers.pop()
+
+        try:
+            provider.force_flush(timeout_millis=5000)
+        except Exception:
+            logger.warning(
+                "Metrics flush failed during shutdown",
+                exc_info=True,
+            )
+        finally:
+            try:
+                provider.shutdown(timeout_millis=5000)
+            except Exception:
+                logger.warning(
+                    "Metrics provider shutdown failed",
+                    exc_info=True,
+                )
+
+
+atexit.register(shutdown_metrics)

@@ -82,7 +82,10 @@ def configure_tracing(service_name: str) -> TracerProviderProtocol | None:
             return _provider
 
         endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
-        if _truthy("OTEL_SDK_DISABLED") or not endpoint:
+        traces_disabled = (
+            os.getenv("OTEL_TRACES_EXPORTER", "otlp").strip().lower() == "none"
+        )
+        if _truthy("OTEL_SDK_DISABLED") or traces_disabled or not endpoint:
             return None
 
         _configured = True

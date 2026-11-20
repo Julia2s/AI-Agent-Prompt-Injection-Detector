@@ -66,21 +66,35 @@ services:
     mem_limit: 256m
     networks: [observability]
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.165.1}
-    profiles: [traces, metrics, observability]
+    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.165.0}
+    profiles: [traces, observability]
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     ports:
-    - 127.0.0.1:4317:4317
-    - 127.0.0.1:4318:4318
+      - 127.0.0.1:4317:4317
+      - 127.0.0.1:4318:4318
     volumes:
-    - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
     depends_on:
       tempo:
         condition: service_healthy
+    mem_limit: 128m
+    networks: [backend, observability]
+
+  otel-metrics-collector:
+    image: otel/opentelemetry-collector-contrib:${OTEL_COLLECTOR_VERSION:-0.165.0}
+    profiles: [metrics, observability]
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    ports:
+      - 127.0.0.1:4327:4317
+      - 127.0.0.1:4328:4318
+    volumes:
+      - ./otel-metrics-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    depends_on:
       victoriametrics:
         condition: service_healthy
     mem_limit: 128m
     networks: [backend, observability]
+    
   victoriametrics:
     image: victoriametrics/victoria-metrics:${VICTORIAMETRICS_VERSION:-v1.156.0}
     profiles: [metrics, observability]

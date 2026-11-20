@@ -12,7 +12,6 @@ naive                   EXPERIMENT BASELINE ONLY. Fire-and-forget: every row bec
 
 import argparse
 import asyncio
-import atexit
 import contextlib
 import csv
 import hashlib
@@ -20,22 +19,20 @@ import logging
 import time
 from pathlib import Path
 
-from aio_pika.exceptions import AMQPException
 from opentelemetry import trace
 
+from mlops.errors import TRANSIENT_ERRORS
 from mlops.messaging import declare_topology, make_broker, new_task, publish_task
 from mlops.metrics import SOURCE_COLUMNS, RateSampler, SourceStats, csv_line
-from mlops.otel_metrics import init_metrics, shutdown_metrics
+from mlops.otel_metrics import init_metrics
 from mlops.settings import PipelineSettings
 from src.core.logging import setup_logging, task_context
 from src.core.tracing import shutdown_tracing
 
 METRICS = init_metrics("source")
-atexit.register(shutdown_metrics)
 
 logger = logging.getLogger(__name__)
 metrics_logger = logging.getLogger("mlops.producer.metrics")
-TRANSIENT_ERRORS = (AMQPException, TimeoutError, ConnectionError, OSError)
 tracer = trace.get_tracer(__name__)
 
 

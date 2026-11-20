@@ -6,15 +6,6 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
-  prometheus:
-    config:
-      scrape_configs:
-        - job_name: 'rabbitmq'
-          static_configs:
-            - targets: ['rabbitmq:15692']
-          metrics_path: '/metrics'
-          scrape_interval: 15s
-
 processors:
   memory_limiter:
     check_interval: 1s
@@ -31,19 +22,9 @@ exporters:
     tls:
       insecure: true
 
-  prometheusremotewrite:
-    endpoint: http://victoriametrics:8428/api/v1/write
-    tls:
-      insecure: true
-
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [memory_limiter, batch]
       exporters: [otlp/tempo]
-
-    metrics:
-      receivers: [otlp, prometheus]
-      processors: [memory_limiter, batch]
-      exporters: [prometheusremotewrite]

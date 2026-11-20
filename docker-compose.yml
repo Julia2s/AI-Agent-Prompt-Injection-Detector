@@ -31,6 +31,9 @@ x-pipeline-env: &pipeline_env
   OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER:-parentbased_always_on}
   OTEL_TRACES_SAMPLER_ARG: ${OTEL_TRACES_SAMPLER_ARG:-1.0}
   OTEL_RESOURCE_ATTRIBUTES: service.version=${OTEL_SERVICE_VERSION:-0.1.0},deployment.environment.name=${ENV:-dev}
+  OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: ${OTEL_EXPORTER_OTLP_METRICS_ENDPOINT:-http://otel-metrics-collector:4317}
+  OTEL_TRACES_EXPORTER: ${OTEL_TRACES_EXPORTER:-otlp}
+  OTEL_METRICS_EXPORTER: ${OTEL_METRICS_EXPORTER:-otlp}
 services:
   app:
     build: .

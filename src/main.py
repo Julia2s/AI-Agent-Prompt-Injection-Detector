@@ -62,17 +62,28 @@ METRICS = init_metrics("api")
 @app.middleware("http")
 async def metrics_middleware(request, call_next):
     started = time.perf_counter()
-    response = await call_next(request)
-    route = request.scope.get("route")
-    path = getattr(route, "path", request.url.path)
-    if path not in ("/healthz", "/api/v1/health"):
-        METRICS["requests_total"].add(
-            1, {"route": path, "status_code": str(response.status_code)}
-        )
-        METRICS["response_duration"].record(
-            time.perf_counter() - started, {"route": path}
-        )
-    return response
+    status_code = None
+
+    try:
+        response = await call_next(request)
+        status_code = response.status_code
+        return response
+    except Exception:
+        status_code = 500
+        raise
+    finally:
+        route = request.scope.get("route")
+        path = getattr(route, "path", "unmatched")
+
+        if status_code is not None and path not in ("/healthz", "/api/v1/health"):
+            METRICS["requests_total"].add(
+                1,
+                {"route": path, "status_code": str(status_code)},
+            )
+            METRICS["response_duration"].record(
+                time.perf_counter() - started,
+                {"route": path},
+            )
 
 
 app.include_router(healthz_router)
