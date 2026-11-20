@@ -1,0 +1,139 @@
+{
+  "uid": "pipeline-main",
+  "title": "Конвейер",
+  "tags": ["pipeline", "observability"],
+  "schemaVersion": 39,
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "worker",
+        "label": "Worker",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "vm-ds" },
+        "query": "label_values(worker_tasks_total, instance)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "current": { "selected": true, "text": ["All"], "value": ["$__all"] }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Глубина очереди (лимит x-max-length = 50)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "rabbitmq_queue_messages_ready{queue=\"inference_queue_v2\"}", "legendFormat": "ready" },
+        { "refId": "B", "expr": "rabbitmq_queue_messages_unacked{queue=\"inference_queue_v2\"}", "legendFormat": "unacked" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 50 } ] },
+          "custom": { "thresholdsStyle": { "mode": "line" } }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Скорость источника vs пропускная способность воркеров",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(source_published_total[1m]))", "legendFormat": "источник published" },
+        { "refId": "B", "expr": "sum(rate(worker_tasks_total{result=\"ok\"}[1m]))", "legendFormat": "воркеры суммарно ok" },
+        { "refId": "C", "expr": "sum by (instance) (rate(worker_tasks_total{result=\"ok\", instance=~\"$worker\"}[1m]))", "legendFormat": "{{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Inference: p50 / p95 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(worker_inference_duration_seconds_bucket{instance=~\"$worker\"}[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(worker_inference_duration_seconds_bucket{instance=~\"$worker\"}[1m])))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(worker_inference_duration_seconds_bucket{instance=~\"$worker\"}[1m])))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Ответ API: p50 / p95 / p99",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.50, sum by (le) (rate(api_response_duration_seconds_bucket[1m])))", "legendFormat": "p50" },
+        { "refId": "B", "expr": "histogram_quantile(0.95, sum by (le) (rate(api_response_duration_seconds_bucket[1m])))", "legendFormat": "p95" },
+        { "refId": "C", "expr": "histogram_quantile(0.99, sum by (le) (rate(api_response_duration_seconds_bucket[1m])))", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Память процессов (RSS)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "{__name__=~\"process_memory_rss_mib.*\", job=~\"source|worker\"}", "legendFormat": "{{job}} / {{instance}}" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "MiB" }, "overrides": [] }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Доля ответов 503",
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(api_requests_total{status_code=\"503\"}[1m])) / clamp_min(sum(rate(api_requests_total[1m])), 1e-9)", "legendFormat": "доля 503" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Отказы брокера источнику",
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(source_rejected_total[1m]))", "legendFormat": "reject-publish / с" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] }
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "DLQ: глубина и приток",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "rabbitmq_queue_messages_ready{queue=\"inference_queue_v2.dlq\"}", "legendFormat": "сообщений в DLQ" },
+        { "refId": "B", "expr": "sum(increase(worker_tasks_total{result=\"dlq\"}[5m]))", "legendFormat": "переведено в DLQ за 5m" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 9, "type": "timeseries", "title": "Задачи в работе и повторные доставки",
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "vm-ds" },
+      "targets": [
+        { "refId": "A", "expr": "worker_inflight{instance=~\"$worker\"}", "legendFormat": "inflight {{instance}}" },
+        { "refId": "B", "expr": "sum(increase(worker_redeliveries_total[5m]))", "legendFormat": "redeliveries за 5m" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 10, "type": "logs", "title": "Последние ошибки (Loki)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "loki", "uid": "loki-ds" },
+      "targets": [
+        { "refId": "A", "expr": "{level=~\"ERROR|error|CRITICAL|critical\"}", "queryType": "range" }
+      ],
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      }
+    }
+  ]
+}

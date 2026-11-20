@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     yield
 
     logger.info("Остановка API. Отключение от RabbitMQ...")
-    await broker.close()
+    await broker.stop()
     await store.close()
     shutdown_tracing()
     logger.info("API shutdown completed")

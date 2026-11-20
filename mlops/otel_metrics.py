@@ -48,7 +48,7 @@ def init_metrics() -> dict:
         "rss_mib": meter.create_observable_gauge(
             name="process_memory_rss_mib",
             callbacks=[lambda _o: [Observation(rss_mb(), {})]],
-            unit="1",
+            unit="",
             description="Resident set size of this process",
         ),
     }
