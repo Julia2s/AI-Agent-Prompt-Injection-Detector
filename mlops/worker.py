@@ -12,7 +12,7 @@ from functools import partial
 from faststream import AckPolicy, FastStream
 from pydantic import BaseModel, Field, ValidationError
 
-from mlops.db import SUCCESS, ResultStore
+from mlops.db import FAILED, SUCCESS, ResultStore
 from mlops.messaging import dead_queue, declare_topology, make_broker, task_queue
 from mlops.settings import PipelineSettings
 
@@ -88,6 +88,22 @@ class Worker:
             message_id=key,
         )
 
+    async def finish_failed(self, task, body, key, attempts, error):
+        await self.to_dlq(body, key, attempts, error)
+
+        await self.store.save_failed(
+            task_id=task.task_id,
+            task_text=task.text,
+            error=error,
+        )
+
+        logger.error(
+            "Task %s FAILED after %s attempts: %s",
+            task.task_id,
+            attempts,
+            error,
+        )
+
     async def process(self, body: bytes):
         async with self.slots:
             try:
@@ -109,13 +125,15 @@ class Worker:
             if existing.text != task.text:
                 await self.to_dlq(body, key, 0, "task_id reused with different text")
                 return
-            if existing.status == SUCCESS:
+            if existing.status in (SUCCESS, FAILED):
                 return  # redelivery of an already finished task: nothing to do
             # PENDING row created by the API: fall through and process it.
         attempts = await self.store.failures(key)
         error = "Retry budget was exhausted before redelivery"
         if attempts >= self.settings.max_attempts:
-            await self.to_dlq(body, key, attempts, error)
+            await self.finish_failed(
+                task, body, key, attempts, error
+            )
             return
         started = time.perf_counter()
         try:
@@ -124,10 +142,13 @@ class Worker:
             )
         except Exception as failure:
             attempts = await self.store.record_failure(key)
+
             if attempts >= self.settings.max_attempts:
-                await self.to_dlq(body, key, attempts, failure)
+                await self.finish_failed(
+                    task, body, key, attempts, failure
+                )
                 return
-            # NACK_ON_ERROR requeues the original delivery after process delay.
+
             raise
         inference_ms = (time.perf_counter() - started) * 1000
         latency_ms = (

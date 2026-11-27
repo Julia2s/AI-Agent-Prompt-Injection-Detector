@@ -20,6 +20,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 PENDING = "PENDING"
 SUCCESS = "SUCCESS"
+FAILED = "FAILED"
 
 # Idempotent upgrades for databases created by the previous schema version
 # (create_all never alters existing tables).
@@ -28,6 +29,7 @@ POSTGRES_UPGRADES = (
     "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ",
     "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS inference_ms DOUBLE PRECISION",
     "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS latency_ms DOUBLE PRECISION",
+    "ALTER TABLE task_results ADD COLUMN IF NOT EXISTS error_message TEXT",
 )
 
 
@@ -58,6 +60,9 @@ class TaskResult(Base):
     inference_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     # created_at of the message -> result written: queueing + inference.
     latency_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
 
 
 class Failure(Base):
@@ -139,6 +144,36 @@ class ResultStore:
             },
             where=TaskResult.status == PENDING,
         )
+        async with self.sessions.begin() as session:
+            await session.execute(statement)
+
+    async def save_failed(self, task_id, task_text, error):
+        now = utcnow()
+        error_message = str(error)[:2000]
+
+        statement = self.insert(TaskResult).values(
+            task_id=task_id,
+            text=task_text,
+            status=FAILED,
+            is_injection=None,
+            finished_at=now,
+            error_message=error_message,
+        )
+
+        statement = statement.on_conflict_do_update(
+            index_elements=[TaskResult.task_id],
+            set_={
+                "status": FAILED,
+                "is_injection": None,
+                "finished_at": now,
+                "error_message": error_message,
+            },
+            where=(
+                (TaskResult.status == PENDING)
+                & (TaskResult.text == task_text)
+            ),
+        )
+
         async with self.sessions.begin() as session:
             await session.execute(statement)
 

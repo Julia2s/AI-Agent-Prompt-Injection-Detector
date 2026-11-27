@@ -14,12 +14,13 @@ POST /api/v1/tasks lifecycle:
 import contextlib
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Path, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
-from mlops.db import SUCCESS, ResultStore
+from mlops.db import FAILED, SUCCESS, ResultStore
 from mlops.messaging import new_task, publish_task
 from mlops.producer import TRANSIENT_ERRORS
 from src.core.broker import broker, pipeline_settings
@@ -29,31 +30,42 @@ store = ResultStore(pipeline_settings.database_url)
 
 
 class TaskRequest(BaseModel):
-    text: str = Field(min_length=1, max_length=100000, description="Prompt to scan")
-    task_id: str | None = Field(
-        default=None,
+    text: str = Field(
         min_length=1,
-        max_length=128,
-        description="Idempotency key. Reuse it when retrying after a 503.",
+        max_length=100000,
+        description="Prompt to scan",
     )
 
 
 class TaskView(BaseModel):
     task_id: str
-    status: str = Field(description="PENDING or SUCCESS")
+
+    status: Literal["PENDING", "SUCCESS", "FAILED"]
+
     is_injection: bool | None = None
-    label: str | None = Field(default=None, description="injection / benign")
+
+    label: str | None = Field(
+        default=None,
+        description="injection / benign",
+    )
+
     created_at: datetime | None = None
     finished_at: datetime | None = None
+
     inference_ms: float | None = None
     latency_ms: float | None = None
+
+    error_message: str | None = None
+
     status_url: str
 
 
 def to_view(row) -> TaskView:
     label = None
+
     if row.is_injection is not None:
         label = "injection" if row.is_injection else "benign"
+
     return TaskView(
         task_id=row.task_id,
         status=row.status,
@@ -63,6 +75,7 @@ def to_view(row) -> TaskView:
         finished_at=row.finished_at,
         inference_ms=row.inference_ms,
         latency_ms=row.latency_ms,
+        error_message=row.error_message,
         status_url=f"/api/v1/tasks/{row.task_id}",
     )
 
@@ -92,7 +105,7 @@ def overloaded(task_id: str, reason: str):
     },
 )
 async def create_task(request: TaskRequest, response: Response):
-    task_id = request.task_id or str(uuid.uuid4())
+    task_id = str(uuid.uuid4())
     try:
         row, created = await store.create_pending(task_id, request.text)
     except (SQLAlchemyError, OSError) as error:
@@ -102,7 +115,7 @@ async def create_task(request: TaskRequest, response: Response):
             status_code=409,
             detail={"error": "task_id_conflict", "task_id": task_id},
         )
-    if row.status == SUCCESS:
+    if row.status in (SUCCESS, FAILED):
         response.status_code = 200
         return to_view(row)
     try:

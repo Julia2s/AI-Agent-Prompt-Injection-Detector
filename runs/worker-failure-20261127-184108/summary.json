@@ -1,0 +1,16 @@
+{
+  "accepted": 20,
+  "success": 20,
+  "lost": 0,
+  "duplicate_rows": 0,
+  "pending": 0,
+  "ready": 0,
+  "unacked": 0,
+  "consumers": 1,
+  "redelivered_delta": 1,
+  "dlq": 0,
+  "killed_worker": "9471f4c47a09c4ba7b9e5327f9b7013a1af52f504c50d5ac31597a16882c128e",
+  "exit_code": 137,
+  "oom_killed": false,
+  "verdict": "PASS"
+}

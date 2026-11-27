@@ -1,0 +1,8 @@
+seconds,phase,consumers,ready,unacked,redelivered_total
+2.03,start,2,0,0,2
+28.84,both_busy,2,2,2,2
+31.7,after_kill,2,2,2,2
+33.73,one_survivor,2,2,2,2
+36.31,one_survivor,1,2,1,3
+95.84,drain,1,0,0,3
+103.0,drain,1,0,0,3
